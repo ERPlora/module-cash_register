@@ -1,0 +1,373 @@
+{% extends "core/app_base.html" %}
+{% load static %}
+
+{% block title %}Cash Register{% endblock %}
+
+{% block content %}
+<div class="p-4" x-data="cashRegisterDashboard()">
+
+        <!-- Header Stats -->
+        <ion-grid>
+            <ion-row>
+                <ion-col size="12" size-md="4">
+                    <ion-card>
+                        <ion-card-content>
+                            <div style="text-align: center;">
+                                <ion-icon name="cash-outline" style="font-size: 48px; color: var(--ion-color-primary);"></ion-icon>
+                                <h3 x-text="openSessions.length"></h3>
+                                <p>{% if HUB_CONFIG.os_language == 'es' %}Sesiones Abiertas{% else %}Open Sessions{% endif %}</p>
+                            </div>
+                        </ion-card-content>
+                    </ion-card>
+                </ion-col>
+                <ion-col size="12" size-md="4">
+                    <ion-card>
+                        <ion-card-content>
+                            <div style="text-align: center;">
+                                <ion-icon name="checkmark-circle-outline" style="font-size: 48px; color: var(--ion-color-success);"></ion-icon>
+                                <h3 x-text="todaySessions.length"></h3>
+                                <p>{% if HUB_CONFIG.os_language == 'es' %}Sesiones Hoy{% else %}Today's Sessions{% endif %}</p>
+                            </div>
+                        </ion-card-content>
+                    </ion-card>
+                </ion-col>
+                <ion-col size="12" size-md="4">
+                    <ion-card>
+                        <ion-card-content>
+                            <div style="text-align: center;">
+                                <ion-icon name="desktop-outline" style="font-size: 48px; color: var(--ion-color-tertiary);"></ion-icon>
+                                <h3 x-text="registers.length"></h3>
+                                <p>{% if HUB_CONFIG.os_language == 'es' %}Cajas Activas{% else %}Active Registers{% endif %}</p>
+                            </div>
+                        </ion-card-content>
+                    </ion-card>
+                </ion-col>
+            </ion-row>
+        </ion-grid>
+
+        <!-- Open Sessions -->
+        <template x-if="openSessions.length > 0">
+            <ion-card>
+                <ion-card-header>
+                    <ion-card-title>{% if HUB_CONFIG.os_language == 'es' %}Sesiones Abiertas{% else %}Open Sessions{% endif %}</ion-card-title>
+                </ion-card-header>
+                <ion-card-content>
+                    <ion-list>
+                        <template x-for="session in openSessions" :key="session.id">
+                            <ion-item button :href="'/plugins/cash_register/session/' + session.id + '/'">
+                                <ion-icon name="cash-outline" slot="start"></ion-icon>
+                                <ion-label>
+                                    <h2 x-text="session.register_name"></h2>
+                                    <p>
+                                        <span>{% if HUB_CONFIG.os_language == 'es' %}Apertura:{% else %}Opening:{% endif %}</span>
+                                        <span x-text="formatCurrency(session.opening_balance)"></span>
+                                        <span> • </span>
+                                        <span x-text="session.employee_name"></span>
+                                    </p>
+                                </ion-label>
+                                <ion-badge slot="end" color="success">{% if HUB_CONFIG.os_language == 'es' %}Abierta{% else %}Open{% endif %}</ion-badge>
+                            </ion-item>
+                        </template>
+                    </ion-list>
+                </ion-card-content>
+            </ion-card>
+        </template>
+
+        <!-- Cash Registers -->
+        <ion-card>
+            <ion-card-header>
+                <ion-card-title>{% if HUB_CONFIG.os_language == 'es' %}Cajas Registradoras{% else %}Cash Registers{% endif %}</ion-card-title>
+            </ion-card-header>
+            <ion-card-content>
+                <ion-list>
+                    <template x-for="register in registers" :key="register.id">
+                        <ion-item button @click="selectRegister(register)">
+                            <ion-icon name="desktop-outline" slot="start"></ion-icon>
+                            <ion-label>
+                                <h2 x-text="register.name"></h2>
+                                <p x-text="register.location"></p>
+                            </ion-label>
+                            <div slot="end" style="text-align: right;">
+                                <ion-badge :color="register.has_open_session ? 'success' : 'medium'">
+                                    <span x-text="register.has_open_session ? '{% if HUB_CONFIG.os_language == 'es' %}Abierta{% else %}Open{% endif %}' : '{% if HUB_CONFIG.os_language == 'es' %}Cerrada{% else %}Closed{% endif %}'"></span>
+                                </ion-badge>
+                                <p style="margin: 4px 0 0 0;">
+                                    <strong x-text="formatCurrency(register.current_balance)"></strong>
+                                </p>
+                            </div>
+                        </ion-item>
+                    </template>
+                </ion-list>
+
+                <template x-if="registers.length === 0">
+                    <div style="text-align: center; padding: 2rem;">
+                        <ion-icon name="desktop-outline" style="font-size: 64px; color: var(--ion-color-medium);"></ion-icon>
+                        <p>{% if HUB_CONFIG.os_language == 'es' %}No hay cajas registradoras configuradas{% else %}No cash registers configured{% endif %}</p>
+                        <ion-button href="/admin/cash_register/cashregister/add/">
+                            {% if HUB_CONFIG.os_language == 'es' %}Crear Caja{% else %}Create Register{% endif %}
+                        </ion-button>
+                    </div>
+                </template>
+            </ion-card-content>
+        </ion-card>
+
+        <!-- Today's Closed Sessions -->
+        <template x-if="todaySessions.length > 0">
+            <ion-card>
+                <ion-card-header>
+                    <ion-card-title>{% if HUB_CONFIG.os_language == 'es' %}Sesiones de Hoy{% else %}Today's Sessions{% endif %}</ion-card-title>
+                </ion-card-header>
+                <ion-card-content>
+                    <ion-list>
+                        <template x-for="session in todaySessions" :key="session.id">
+                            <ion-item button :href="'/plugins/cash_register/session/' + session.id + '/'">
+                                <ion-icon name="checkmark-circle-outline" slot="start" color="success"></ion-icon>
+                                <ion-label>
+                                    <h2 x-text="session.session_number"></h2>
+                                    <p>
+                                        <span x-text="session.register_name"></span>
+                                        <span> • </span>
+                                        <span x-text="session.employee_name"></span>
+                                    </p>
+                                </ion-label>
+                                <div slot="end" style="text-align: right;">
+                                    <p style="margin: 0;">
+                                        <strong x-text="formatCurrency(session.closing_balance)"></strong>
+                                    </p>
+                                    <p style="margin: 0; font-size: 0.85rem;" :style="'color: ' + (session.difference >= 0 ? 'var(--ion-color-success)' : 'var(--ion-color-danger)')">
+                                        <span x-text="session.difference >= 0 ? '+' : ''"></span>
+                                        <span x-text="formatCurrency(session.difference)"></span>
+                                    </p>
+                                </div>
+                            </ion-item>
+                        </template>
+                    </ion-list>
+                </ion-card-content>
+            </ion-card>
+        </template>
+
+        <!-- Quick Action Modal (Open/Close Session) -->
+        <ion-modal :is-open="showSessionModal" @didDismiss="showSessionModal = false">
+            <ion-header>
+                <ion-toolbar>
+                    <ion-title x-text="selectedRegister && selectedRegister.has_open_session ? '{% if HUB_CONFIG.os_language == 'es' %}Cerrar Sesión{% else %}Close Session{% endif %}' : '{% if HUB_CONFIG.os_language == 'es' %}Abrir Sesión{% else %}Open Session{% endif %}'"></ion-title>
+                    <ion-buttons slot="end">
+                        <ion-button @click="showSessionModal = false">
+                            {% if HUB_CONFIG.os_language == 'es' %}Cancelar{% else %}Cancel{% endif %}
+                        </ion-button>
+                    </ion-buttons>
+                </ion-toolbar>
+            </ion-header>
+            <ion-content class="ion-padding">
+                <template x-if="selectedRegister">
+                    <div>
+                        <h3 x-text="selectedRegister.name"></h3>
+
+                        <!-- Open Session Form -->
+                        <template x-if="!selectedRegister.has_open_session">
+                            <div>
+                                <ion-item>
+                                    <ion-label position="floating">{% if HUB_CONFIG.os_language == 'es' %}Balance Inicial{% else %}Opening Balance{% endif %}</ion-label>
+                                    <ion-input type="number" step="0.01" x-model="openingBalance"></ion-input>
+                                </ion-item>
+
+                                <ion-item>
+                                    <ion-label position="floating">{% if HUB_CONFIG.os_language == 'es' %}Empleado{% else %}Employee{% endif %}</ion-label>
+                                    <ion-input type="text" x-model="employeeName"></ion-input>
+                                </ion-item>
+
+                                <ion-item>
+                                    <ion-label position="floating">{% if HUB_CONFIG.os_language == 'es' %}Notas{% else %}Notes{% endif %}</ion-label>
+                                    <ion-textarea x-model="sessionNotes"></ion-textarea>
+                                </ion-item>
+
+                                <ion-button expand="block" @click="openSession()" style="margin-top: 1rem;">
+                                    {% if HUB_CONFIG.os_language == 'es' %}Abrir Sesión{% else %}Open Session{% endif %}
+                                </ion-button>
+                            </div>
+                        </template>
+
+                        <!-- Close Session Form -->
+                        <template x-if="selectedRegister.has_open_session">
+                            <div>
+                                <ion-item>
+                                    <ion-label>{% if HUB_CONFIG.os_language == 'es' %}Balance Esperado{% else %}Expected Balance{% endif %}</ion-label>
+                                    <ion-note slot="end" x-text="formatCurrency(selectedRegister.current_balance)"></ion-note>
+                                </ion-item>
+
+                                <ion-item>
+                                    <ion-label position="floating">{% if HUB_CONFIG.os_language == 'es' %}Balance Real{% else %}Actual Balance{% endif %}</ion-label>
+                                    <ion-input type="number" step="0.01" x-model="closingBalance"></ion-input>
+                                </ion-item>
+
+                                <ion-item>
+                                    <ion-label position="floating">{% if HUB_CONFIG.os_language == 'es' %}Notas{% else %}Notes{% endif %}</ion-label>
+                                    <ion-textarea x-model="sessionNotes"></ion-textarea>
+                                </ion-item>
+
+                                <ion-button expand="block" color="danger" @click="closeSession()" style="margin-top: 1rem;">
+                                    {% if HUB_CONFIG.os_language == 'es' %}Cerrar Sesión{% else %}Close Session{% endif %}
+                                </ion-button>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+            </ion-content>
+        </ion-modal>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function cashRegisterDashboard() {
+    return {
+        registers: {{ registers|safe|default:"[]" }},
+        openSessions: [],
+        todaySessions: [],
+        selectedRegister: null,
+        showSessionModal: false,
+
+        // Form fields
+        openingBalance: 0,
+        closingBalance: 0,
+        employeeName: 'Current User',
+        sessionNotes: '',
+
+        async init() {
+            // Load initial data from Django context
+            this.openSessions = {{ open_sessions|safe|default:"[]" }}.map(s => ({
+                id: s.id,
+                session_number: s.session_number,
+                register_name: s.cash_register__name,
+                employee_name: s.employee_name,
+                opening_balance: parseFloat(s.opening_balance),
+            }));
+
+            this.todaySessions = {{ today_sessions|safe|default:"[]" }}.map(s => ({
+                id: s.id,
+                session_number: s.session_number,
+                register_name: s.cash_register__name,
+                employee_name: s.employee_name,
+                closing_balance: parseFloat(s.closing_balance || 0),
+                difference: parseFloat(s.difference || 0),
+            }));
+
+            // Transform registers data
+            this.registers = this.registers.map(r => ({
+                id: r.id,
+                name: r.name,
+                location: r.location,
+                current_balance: parseFloat(r.current_balance),
+                has_open_session: r.has_open_session,
+            }));
+        },
+
+        selectRegister(register) {
+            this.selectedRegister = register;
+            this.showSessionModal = true;
+            this.openingBalance = register.current_balance;
+            this.closingBalance = register.current_balance;
+            this.sessionNotes = '';
+        },
+
+        async openSession() {
+            try {
+                const response = await fetch('/plugins/cash_register/api/session/open/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': this.getCookie('csrftoken')
+                    },
+                    body: JSON.stringify({
+                        register_id: this.selectedRegister.id,
+                        opening_balance: this.openingBalance,
+                        employee_name: this.employeeName,
+                        notes: this.sessionNotes
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    await this.showToast('{% if HUB_CONFIG.os_language == 'es' %}Sesión abierta correctamente{% else %}Session opened successfully{% endif %}', 'success');
+                    this.showSessionModal = false;
+                    window.location.reload();
+                } else {
+                    await this.showToast(result.error, 'danger');
+                }
+            } catch (error) {
+                console.error('[CASH REGISTER] Error opening session:', error);
+                await this.showToast('{% if HUB_CONFIG.os_language == 'es' %}Error al abrir sesión{% else %}Error opening session{% endif %}', 'danger');
+            }
+        },
+
+        async closeSession() {
+            try {
+                const response = await fetch('/plugins/cash_register/api/session/close/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': this.getCookie('csrftoken')
+                    },
+                    body: JSON.stringify({
+                        session_id: this.selectedRegister.current_session_id,
+                        closing_balance: this.closingBalance,
+                        notes: this.sessionNotes,
+                        counted_by: this.employeeName
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    await this.showToast('{% if HUB_CONFIG.os_language == 'es' %}Sesión cerrada correctamente{% else %}Session closed successfully{% endif %}', 'success');
+                    this.showSessionModal = false;
+                    window.location.reload();
+                } else {
+                    await this.showToast(result.error, 'danger');
+                }
+            } catch (error) {
+                console.error('[CASH REGISTER] Error closing session:', error);
+                await this.showToast('{% if HUB_CONFIG.os_language == 'es' %}Error al cerrar sesión{% else %}Error closing session{% endif %}', 'danger');
+            }
+        },
+
+        formatCurrency(amount) {
+            const currency = '{{ HUB_CONFIG.currency }}';
+            const symbols = {
+                'EUR': '€',
+                'USD': '$',
+                'GBP': '£',
+            };
+            const symbol = symbols[currency] || currency;
+            return symbol + parseFloat(amount).toFixed(2);
+        },
+
+        async showToast(message, color = 'primary') {
+            const toast = document.createElement('ion-toast');
+            toast.message = message;
+            toast.duration = 2000;
+            toast.color = color;
+            document.body.appendChild(toast);
+            await toast.present();
+        },
+
+        getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+    }
+}
+</script>
+{% endblock %}

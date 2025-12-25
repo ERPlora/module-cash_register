@@ -1,0 +1,50 @@
+{% load i18n %}
+
+<ion-tab-bar>
+    <ion-tab-button
+        hx-get="{% url 'cash_register:dashboard' %}"
+        hx-target="#dashboard-content"
+        hx-push-url="true"
+        class="{% if current_view == 'dashboard' %}tab-selected{% endif %}">
+        <ion-icon name="home-outline"></ion-icon>
+        <ion-label>{% trans "Inicio" %}</ion-label>
+    </ion-tab-button>
+
+    {% if open_session %}
+    <ion-tab-button
+        hx-get="{% url 'cash_register:close_session' %}"
+        hx-target="#dashboard-content"
+        hx-push-url="true"
+        class="{% if current_view == 'close' %}tab-selected{% endif %}">
+        <ion-icon name="lock-closed-outline"></ion-icon>
+        <ion-label>{% trans "Cerrar" %}</ion-label>
+    </ion-tab-button>
+    {% else %}
+    <ion-tab-button
+        hx-get="{% url 'cash_register:open_session' %}"
+        hx-target="#dashboard-content"
+        hx-push-url="true"
+        class="{% if current_view == 'open' %}tab-selected{% endif %}">
+        <ion-icon name="lock-open-outline"></ion-icon>
+        <ion-label>{% trans "Abrir" %}</ion-label>
+    </ion-tab-button>
+    {% endif %}
+
+    <ion-tab-button
+        hx-get="{% url 'cash_register:history' %}"
+        hx-target="#dashboard-content"
+        hx-push-url="true"
+        class="{% if current_view == 'history' %}tab-selected{% endif %}">
+        <ion-icon name="time-outline"></ion-icon>
+        <ion-label>{% trans "Historial" %}</ion-label>
+    </ion-tab-button>
+
+    <ion-tab-button
+        hx-get="{% url 'cash_register:settings' %}"
+        hx-target="#dashboard-content"
+        hx-push-url="true"
+        class="{% if current_view == 'settings' %}tab-selected{% endif %}">
+        <ion-icon name="settings-outline"></ion-icon>
+        <ion-label>{% trans "Config" %}</ion-label>
+    </ion-tab-button>
+</ion-tab-bar>

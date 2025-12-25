@@ -1,0 +1,392 @@
+{% extends "core/app_base.html" %}
+{% load static %}
+{% load i18n %}
+
+{% block title %}{% trans "Close Cash Session" %}{% endblock %}
+
+{% block content %}
+<div class="p-4" x-data="closeSessionApp()">
+    <ion-card>
+        <ion-card-header class="p-0">
+            <ion-toolbar>
+                <ion-buttons slot="start">
+                    <ion-button href="{% url 'cash_register:dashboard' %}" fill="clear">
+                        <ion-icon slot="icon-only" name="arrow-back-outline"></ion-icon>
+                    </ion-button>
+                </ion-buttons>
+                <ion-title>{% trans "Close Cash Session" %}</ion-title>
+                <ion-buttons slot="end">
+                    <ion-note>{{ session.session_number }}</ion-note>
+                </ion-buttons>
+            </ion-toolbar>
+        </ion-card-header>
+
+        <ion-card-content>
+            <!-- Session Summary -->
+            <ion-card color="light" class="mb-4">
+                <ion-card-content>
+                    <ion-grid class="p-0">
+                        <ion-row>
+                            <ion-col size="6">
+                                <p class="text-sm text-gray-600 dark:text-gray-400">{% trans "Opened At" %}</p>
+                                <p class="font-semibold">{{ session.opened_at|date:"d/m/Y H:i" }}</p>
+                            </ion-col>
+                            <ion-col size="6" class="text-right">
+                                <p class="text-sm text-gray-600 dark:text-gray-400">{% trans "Opening Balance" %}</p>
+                                <p class="font-semibold">{{ HUB_CONFIG.currency }} {{ session.opening_balance }}</p>
+                            </ion-col>
+                        </ion-row>
+
+                        <ion-row class="mt-3">
+                            <ion-col size="12">
+                                <div class="bg-white dark:bg-gray-800 rounded-lg p-3">
+                                    <div class="flex justify-between items-center mb-2">
+                                        <span class="text-sm">{% trans "Total Sales" %}</span>
+                                        <span class="font-semibold text-success">
+                                            +{{ HUB_CONFIG.currency }} {{ session.get_total_sales }}
+                                        </span>
+                                    </div>
+                                    <div class="flex justify-between items-center mb-2">
+                                        <span class="text-sm">{% trans "Cash In" %}</span>
+                                        <span class="font-semibold text-success">
+                                            +{{ HUB_CONFIG.currency }} {{ session.get_total_in }}
+                                        </span>
+                                    </div>
+                                    <div class="flex justify-between items-center mb-2">
+                                        <span class="text-sm">{% trans "Cash Out" %}</span>
+                                        <span class="font-semibold text-danger">
+                                            -{{ HUB_CONFIG.currency }} {{ session.get_total_out|stringformat:".2f"|cut:"-" }}
+                                        </span>
+                                    </div>
+                                    <hr class="my-2">
+                                    <div class="flex justify-between items-center">
+                                        <span class="font-semibold">{% trans "Expected Balance" %}</span>
+                                        <span class="text-xl font-bold text-primary">
+                                            {{ HUB_CONFIG.currency }} {{ expected_balance }}
+                                        </span>
+                                    </div>
+                                </div>
+                            </ion-col>
+                        </ion-row>
+                    </ion-grid>
+                </ion-card-content>
+            </ion-card>
+
+            <!-- Closing Balance Form -->
+            <form method="POST" @submit.prevent="submitForm()">
+                {% csrf_token %}
+
+                <ion-item>
+                    <ion-label position="stacked">
+                        {% trans "Actual Closing Balance" %}
+                        {% if config.require_closing_balance %}<span class="text-danger">*</span>{% endif %}
+                    </ion-label>
+                    <ion-input
+                        name="closing_balance"
+                        type="number"
+                        step="0.01"
+                        x-model="closingBalance"
+                        :required="requireClosingBalance"
+                        placeholder="0.00">
+                    </ion-input>
+                </ion-item>
+
+                <!-- Difference Indicator -->
+                <div x-show="closingBalance > 0" class="mt-3">
+                    <ion-card :color="difference === 0 ? 'success' : (difference > 0 ? 'warning' : 'danger')">
+                        <ion-card-content class="flex justify-between items-center">
+                            <div>
+                                <p class="text-sm">{% trans "Difference" %}</p>
+                                <p class="text-2xl font-bold" x-text="formatCurrency(Math.abs(difference))"></p>
+                            </div>
+                            <div class="text-right">
+                                <template x-if="difference === 0">
+                                    <div>
+                                        <ion-icon name="checkmark-circle" class="text-5xl"></ion-icon>
+                                        <p class="text-sm">{% trans "Exact!" %}</p>
+                                    </div>
+                                </template>
+                                <template x-if="difference > 0">
+                                    <div>
+                                        <ion-icon name="trending-up" class="text-5xl"></ion-icon>
+                                        <p class="text-sm">{% trans "Surplus" %}</p>
+                                    </div>
+                                </template>
+                                <template x-if="difference < 0">
+                                    <div>
+                                        <ion-icon name="trending-down" class="text-5xl"></ion-icon>
+                                        <p class="text-sm">{% trans "Shortage" %}</p>
+                                    </div>
+                                </template>
+                            </div>
+                        </ion-card-content>
+                    </ion-card>
+                </div>
+
+                <!-- Denomination Counter -->
+                <div class="mt-4">
+                    <ion-button
+                        @click="showDenominationCounter = !showDenominationCounter"
+                        fill="outline"
+                        expand="block">
+                        <ion-icon slot="start" name="calculator-outline"></ion-icon>
+                        <span x-text="showDenominationCounter ? '{% trans "Hide Calculator" %}' : '{% trans "Count Denominations" %}'"></span>
+                    </ion-button>
+                </div>
+
+                <!-- Denomination Counter Expanded -->
+                <div x-show="showDenominationCounter" class="mt-4" x-transition>
+                    <ion-card>
+                        <ion-card-header>
+                            <ion-card-subtitle>{% trans "Cash Count" %}</ion-card-subtitle>
+                        </ion-card-header>
+                        <ion-card-content>
+                            <!-- Coins -->
+                            <p class="font-semibold mb-2">{% trans "Coins" %}</p>
+                            <ion-grid class="p-0">
+                                <ion-row>
+                                    <template x-for="coin in coins" :key="coin.value">
+                                        <ion-col size="6" size-md="4">
+                                            <ion-item>
+                                                <ion-label>
+                                                    <span x-text="formatCurrency(coin.value)"></span>
+                                                </ion-label>
+                                                <ion-input
+                                                    type="number"
+                                                    min="0"
+                                                    :value="coin.count"
+                                                    @ionInput="updateDenomination('coin', coin.value, $event.target.value)"
+                                                    placeholder="0">
+                                                </ion-input>
+                                            </ion-item>
+                                        </ion-col>
+                                    </template>
+                                </ion-row>
+                            </ion-grid>
+
+                            <!-- Bills -->
+                            <p class="font-semibold mb-2 mt-4">{% trans "Bills" %}</p>
+                            <ion-grid class="p-0">
+                                <ion-row>
+                                    <template x-for="bill in bills" :key="bill.value">
+                                        <ion-col size="6" size-md="4">
+                                            <ion-item>
+                                                <ion-label>
+                                                    <span x-text="formatCurrency(bill.value)"></span>
+                                                </ion-label>
+                                                <ion-input
+                                                    type="number"
+                                                    min="0"
+                                                    :value="bill.count"
+                                                    @ionInput="updateDenomination('bill', bill.value, $event.target.value)"
+                                                    placeholder="0">
+                                                </ion-input>
+                                            </ion-item>
+                                        </ion-col>
+                                    </template>
+                                </ion-row>
+                            </ion-grid>
+
+                            <!-- Calculated Total -->
+                            <ion-item class="mt-4" color="primary">
+                                <ion-label>
+                                    <h2>{% trans "Calculated Total" %}</h2>
+                                </ion-label>
+                                <ion-note slot="end" class="text-xl font-bold">
+                                    <span x-text="formatCurrency(calculatedTotal)"></span>
+                                </ion-note>
+                            </ion-item>
+
+                            <ion-button
+                                @click="useCalculatedTotal()"
+                                expand="block"
+                                fill="outline"
+                                class="mt-2">
+                                {% trans "Use This Amount" %}
+                            </ion-button>
+                        </ion-card-content>
+                    </ion-card>
+                </div>
+
+                <ion-item class="mt-3">
+                    <ion-label position="stacked">{% trans "Closing Notes (Optional)" %}</ion-label>
+                    <ion-textarea
+                        name="notes"
+                        x-model="notes"
+                        rows="3"
+                        placeholder="{% trans "Any discrepancies or notes..." %}">
+                    </ion-textarea>
+                </ion-item>
+
+                <!-- Hidden field for denominations JSON -->
+                <input type="hidden" name="denominations_json" :value="JSON.stringify(getDenominationsData())">
+
+                <!-- Action Buttons -->
+                <div class="mt-6 flex gap-3">
+                    <ion-button
+                        href="{% url 'cash_register:dashboard' %}"
+                        fill="outline"
+                        expand="block"
+                        class="flex-1">
+                        {% trans "Cancel" %}
+                    </ion-button>
+                    <ion-button
+                        type="submit"
+                        expand="block"
+                        color="danger"
+                        class="flex-1"
+                        :disabled="processing">
+                        <ion-icon slot="start" name="lock-closed-outline"></ion-icon>
+                        <span x-show="!processing">{% trans "Close Session" %}</span>
+                        <span x-show="processing">{% trans "Closing..." %}</span>
+                    </ion-button>
+                </div>
+            </form>
+        </ion-card-content>
+    </ion-card>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function closeSessionApp() {
+    return {
+        expectedBalance: {{ expected_balance }},
+        closingBalance: {{ expected_balance }},
+        notes: '',
+        processing: false,
+        requireClosingBalance: {{ config.require_closing_balance|yesno:"true,false" }},
+
+        // Denomination counter
+        showDenominationCounter: false,
+        coins: [
+            { value: 0.01, count: 0 },
+            { value: 0.02, count: 0 },
+            { value: 0.05, count: 0 },
+            { value: 0.10, count: 0 },
+            { value: 0.20, count: 0 },
+            { value: 0.50, count: 0 },
+            { value: 1.00, count: 0 },
+            { value: 2.00, count: 0 },
+        ],
+        bills: [
+            { value: 5, count: 0 },
+            { value: 10, count: 0 },
+            { value: 20, count: 0 },
+            { value: 50, count: 0 },
+            { value: 100, count: 0 },
+            { value: 200, count: 0 },
+            { value: 500, count: 0 },
+        ],
+
+        get difference() {
+            return Math.round((this.closingBalance - this.expectedBalance) * 100) / 100;
+        },
+
+        get calculatedTotal() {
+            let total = 0;
+            this.coins.forEach(coin => {
+                total += coin.value * coin.count;
+            });
+            this.bills.forEach(bill => {
+                total += bill.value * bill.count;
+            });
+            return Math.round(total * 100) / 100;
+        },
+
+        updateDenomination(type, value, count) {
+            const items = type === 'coin' ? this.coins : this.bills;
+            const item = items.find(i => i.value === value);
+            if (item) {
+                item.count = parseInt(count) || 0;
+            }
+        },
+
+        useCalculatedTotal() {
+            this.closingBalance = this.calculatedTotal;
+        },
+
+        getDenominationsData() {
+            const data = {};
+            this.coins.forEach(coin => {
+                if (coin.count > 0) {
+                    data[`coin_${coin.value}`] = coin.count;
+                }
+            });
+            this.bills.forEach(bill => {
+                if (bill.count > 0) {
+                    data[`bill_${bill.value}`] = bill.count;
+                }
+            });
+            return data;
+        },
+
+        async submitForm() {
+            if (this.requireClosingBalance && !this.closingBalance) {
+                await this.showToast('{% trans "Closing balance is required" %}', 'danger');
+                return;
+            }
+
+            // Confirm if there's a significant difference
+            if (Math.abs(this.difference) > 10) {
+                const confirmed = await this.showConfirm(
+                    '{% trans "Large Discrepancy" %}',
+                    `{% trans "There is a difference of" %} ${this.formatCurrency(Math.abs(this.difference))}. {% trans "Are you sure you want to close the session?" %}`
+                );
+
+                if (!confirmed) {
+                    return;
+                }
+            }
+
+            this.processing = true;
+
+            // Submit the form normally (no AJAX, let Django handle it)
+            document.querySelector('form').submit();
+        },
+
+        formatCurrency(amount) {
+            const currency = '{{ HUB_CONFIG.currency }}';
+            const symbols = {
+                'EUR': '€',
+                'USD': '$',
+                'GBP': '£',
+            };
+            const symbol = symbols[currency] || currency;
+            return symbol + parseFloat(amount).toFixed(2);
+        },
+
+        async showToast(message, color = 'primary') {
+            const toast = document.createElement('ion-toast');
+            toast.message = message;
+            toast.duration = 2000;
+            toast.color = color;
+            document.body.appendChild(toast);
+            await toast.present();
+        },
+
+        async showConfirm(header, message) {
+            return new Promise((resolve) => {
+                const alert = document.createElement('ion-alert');
+                alert.header = header;
+                alert.message = message;
+                alert.buttons = [
+                    {
+                        text: '{% trans "Cancel" %}',
+                        role: 'cancel',
+                        handler: () => resolve(false)
+                    },
+                    {
+                        text: '{% trans "Confirm" %}',
+                        role: 'confirm',
+                        handler: () => resolve(true)
+                    }
+                ];
+                document.body.appendChild(alert);
+                alert.present();
+            });
+        }
+    }
+}
+</script>
+{% endblock %}
