@@ -10,7 +10,11 @@
         <ion-card-header class="p-0">
             <ion-toolbar>
                 <ion-buttons slot="start">
-                    <ion-button href="{% url 'cash_register:dashboard' %}" fill="clear">
+                    <ion-button
+                        hx-get="{% url 'cash_register:dashboard' %}"
+                        hx-target="#dashboard-content"
+                        hx-push-url="true"
+                        fill="clear">
                         <ion-icon slot="icon-only" name="arrow-back-outline"></ion-icon>
                     </ion-button>
                 </ion-buttons>
@@ -166,7 +170,9 @@
                 <!-- Action Buttons -->
                 <div class="mt-6 flex gap-3">
                     <ion-button
-                        href="{% url 'configuration:dashboard' %}"
+                        hx-get="{% url 'configuration:dashboard' %}"
+                        hx-target="#dashboard-content"
+                        hx-push-url="true"
                         fill="outline"
                         expand="block"
                         class="flex-1">

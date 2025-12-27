@@ -8,6 +8,7 @@ import json
 
 from apps.accounts.decorators import login_required
 from apps.configuration.models import HubConfig, StoreConfig
+from apps.core.htmx import htmx_view
 from .models import (
     CashRegisterConfig,
     CashSession,
@@ -17,6 +18,7 @@ from .models import (
 
 
 @login_required
+@htmx_view('cash_register/index.html', 'cash_register/partials/dashboard_content.html')
 def dashboard(request):
     """
     Main dashboard for cash register.
@@ -44,18 +46,12 @@ def dashboard(request):
         user=request.user
     ).order_by('-opened_at')[:10]
 
-    context = {
+    return {
         'config': config,
         'open_session': open_session,
         'today_sessions': today_sessions,
         'recent_sessions': recent_sessions,
     }
-
-    # Si es petición HTMX, devolver solo el contenido
-    if request.headers.get('HX-Request'):
-        return render(request, 'cash_register/partials/dashboard_content.html', context)
-
-    return render(request, 'cash_register/index.html', context)
 
 
 @login_required
@@ -225,6 +221,7 @@ def session_detail(request, session_id):
 
 
 @login_required
+@htmx_view('cash_register/settings.html', 'cash_register/partials/settings_content.html')
 def settings_view(request):
     """Settings page for cash register plugin. Supports HTMX."""
     config = CashRegisterConfig.get_config()
@@ -263,19 +260,14 @@ def settings_view(request):
 
         return JsonResponse({'success': True, 'message': 'Settings saved successfully'})
 
-    context = {
+    return {
         'config': config,
         'open_session': open_session,
     }
 
-    # Si es petición HTMX, devolver solo el contenido
-    if request.headers.get('HX-Request'):
-        return render(request, 'cash_register/partials/settings_content.html', context)
-
-    return render(request, 'cash_register/settings.html', context)
-
 
 @login_required
+@htmx_view('cash_register/history.html', 'cash_register/partials/history_content.html')
 def history(request):
     """
     Session history view with pagination and filters.
@@ -306,19 +298,13 @@ def history(request):
     if date_to:
         sessions = sessions.filter(opened_at__lte=date_to)
 
-    context = {
+    return {
         'sessions': sessions,
         'status_filter': status_filter,
         'date_from': date_from,
         'date_to': date_to,
         'open_session': open_session,
     }
-
-    # Si es petición HTMX, devolver solo el contenido
-    if request.headers.get('HX-Request'):
-        return render(request, 'cash_register/partials/history_content.html', context)
-
-    return render(request, 'cash_register/history.html', context)
 
 
 # ============================================================================
