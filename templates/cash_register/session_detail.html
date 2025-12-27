@@ -11,7 +11,11 @@
         <ion-card-header class="p-0">
             <ion-toolbar>
                 <ion-buttons slot="start">
-                    <ion-button href="{% url 'cash_register:dashboard' %}" fill="clear">
+                    <ion-button
+                        hx-get="{% url 'cash_register:dashboard' %}"
+                        hx-target="#dashboard-content"
+                        hx-push-url="true"
+                        fill="clear">
                         <ion-icon slot="icon-only" name="arrow-back-outline"></ion-icon>
                     </ion-button>
                 </ion-buttons>
@@ -263,7 +267,13 @@
     <!-- Action Buttons -->
     {% if session.status == 'open' %}
     <div class="mt-4 flex gap-3">
-        <ion-button href="{% url 'cash_register:close_session' %}" expand="block" color="danger" class="flex-1">
+        <ion-button
+            hx-get="{% url 'cash_register:close_session' %}"
+            hx-target="#dashboard-content"
+            hx-push-url="true"
+            expand="block"
+            color="danger"
+            class="flex-1">
             <ion-icon slot="start" name="lock-closed-outline"></ion-icon>
             {% trans "Close Session" %}
         </ion-button>
