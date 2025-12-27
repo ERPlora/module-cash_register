@@ -1,55 +1,144 @@
 """
 Integration tests for Cash Register views.
+
+Fixtures (client, user, open_session, closed_session) are defined in conftest.py
 """
 
 import pytest
 import json
 from decimal import Decimal
-from django.test import Client
 
 from cash_register.models import (
     CashRegisterConfig, CashSession, CashMovement, CashCount
 )
-from apps.accounts.models import LocalUser
 
 
-@pytest.fixture
-def client():
-    """Create test client."""
-    return Client()
+# Fixtures are inherited from conftest.py:
+# - client: Django test client
+# - user: Test LocalUser
+# - open_session: Open CashSession for user
+# - closed_session: Closed CashSession for user
 
 
-@pytest.fixture
-def user():
-    """Create a test user."""
-    return LocalUser.objects.create(
-        name="Test User",
-        pin="1234",
-        is_active=True
-    )
+@pytest.mark.django_db
+class TestDashboardView:
+    """Tests for dashboard view."""
+
+    def test_dashboard_get(self, client, user):
+        """Test GET dashboard page."""
+        client.force_login(user)
+
+        response = client.get('/modules/cash_register/')
+
+        assert response.status_code in [200, 302]
+
+    def test_dashboard_htmx(self, client, user):
+        """Test HTMX dashboard request."""
+        client.force_login(user)
+
+        response = client.get(
+            '/modules/cash_register/',
+            HTTP_HX_REQUEST='true'
+        )
+
+        assert response.status_code in [200, 302]
 
 
-@pytest.fixture
-def open_session(user):
-    """Create an open cash session."""
-    return CashSession.objects.create(
-        user=user,
-        opening_balance=Decimal('100.00'),
-        status='open'
-    )
+@pytest.mark.django_db
+class TestOpenSessionView:
+    """Tests for open_session view (HTML form, not API)."""
+
+    def test_open_session_renders_without_error(self, client, user):
+        """Test that open_session page renders without template errors.
+
+        This test specifically catches NoReverseMatch errors in templates,
+        like the bug where 'configuration:dashboard' was used instead of 'main:index'.
+        """
+        client.force_login(user)
+
+        response = client.get('/modules/cash_register/open/')
+
+        # Should render successfully (200) or redirect (302 if session exists)
+        assert response.status_code in [200, 302], (
+            f"Expected 200 or 302, got {response.status_code}. "
+            "Check for template errors like NoReverseMatch."
+        )
+
+    def test_open_session_redirects_if_session_exists(self, client, user, open_session):
+        """Test redirect when user already has an open session."""
+        client.force_login(user)
+
+        response = client.get('/modules/cash_register/open/')
+
+        assert response.status_code == 302  # Redirect to dashboard
+
+    def test_open_session_post_no_template_error(self, client, user):
+        """Test POST doesn't cause template errors.
+
+        Note: This test verifies the view doesn't crash, not that it creates
+        a session. Session creation depends on specific form fields which
+        may vary based on implementation.
+        """
+        client.force_login(user)
+
+        response = client.post('/modules/cash_register/open/', {
+            'opening_balance': '100.00',
+            'notes': 'Test session',
+            'denominations_json': '{}',
+        })
+
+        # Should either redirect (success) or show form (validation error)
+        # Should NOT return 500 (template error)
+        assert response.status_code in [200, 302], (
+            f"Expected 200 or 302, got {response.status_code}. "
+            "POST should not cause template errors."
+        )
 
 
-@pytest.fixture
-def closed_session(user):
-    """Create a closed cash session."""
-    from django.utils import timezone
-    return CashSession.objects.create(
-        user=user,
-        opening_balance=Decimal('100.00'),
-        closing_balance=Decimal('150.00'),
-        status='closed',
-        closed_at=timezone.now()
-    )
+@pytest.mark.django_db
+class TestCloseSessionView:
+    """Tests for close_session view (HTML form, not API)."""
+
+    def test_close_session_renders_without_error(self, client, user, open_session):
+        """Test that close_session page renders without template errors."""
+        client.force_login(user)
+
+        response = client.get('/modules/cash_register/close/')
+
+        assert response.status_code in [200, 302], (
+            f"Expected 200 or 302, got {response.status_code}. "
+            "Check for template errors like NoReverseMatch."
+        )
+
+    def test_close_session_redirects_if_no_session(self, client, user):
+        """Test redirect when user has no open session."""
+        client.force_login(user)
+
+        response = client.get('/modules/cash_register/close/')
+
+        assert response.status_code == 302  # Redirect to dashboard
+
+    def test_close_session_post_no_template_error(self, client, user, open_session):
+        """Test POST doesn't cause template errors.
+
+        Note: This test verifies the view doesn't crash, not that it closes
+        the session. Session closing depends on specific form fields which
+        may vary based on implementation.
+        """
+        client.force_login(user)
+
+        response = client.post('/modules/cash_register/close/', {
+            'closing_balance': '150.00',
+            'notes': 'End of day',
+            'denominations_json': '{}',
+        })
+
+        # Should either redirect (success) or show form (validation error)
+        # Should NOT return 500 (template error)
+        assert response.status_code in [200, 302], (
+            f"Expected 200 or 302, got {response.status_code}. "
+            "POST should not cause template errors."
+        )
 
 
 @pytest.mark.django_db
