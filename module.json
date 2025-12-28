@@ -9,21 +9,32 @@
   "author_email": "support@erplora.com",
   "license": "MIT",
   "category": "pos",
-  "tags": ["cash", "register", "money", "pos", "sessions", "drawer", "payments"],
+  "industries": [
+    "retail",
+    "restaurant",
+    "bar",
+    "cafe",
+    "fast_food",
+    "salon"
+  ],
+  "tags": [
+    "cash",
+    "register",
+    "money",
+    "sessions",
+    "drawer",
+    "payments"
+  ],
   "icon": "cash-outline",
-
   "middleware": "middleware.CashRegisterMiddleware",
-
   "dependencies": {
     "python": [],
     "modules": []
   },
-
   "compatibility": {
     "min_erplora_version": "1.0.0",
     "max_erplora_version": "2.0.0"
   },
-
   "menu": {
     "label": "Cash Register",
     "label_es": "Caja",
@@ -31,7 +42,6 @@
     "url": "/modules/cash_register/",
     "order": 6
   },
-
   "permissions": [
     "cash_register.view_cashsession",
     "cash_register.open_cashsession",
@@ -39,7 +49,6 @@
     "cash_register.add_cashmovement",
     "cash_register.view_cashmovement"
   ],
-
   "settings": {
     "enable_cash_register": {
       "type": "boolean",
