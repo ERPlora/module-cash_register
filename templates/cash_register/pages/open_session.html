@@ -1,0 +1,114 @@
+{% extends "ui/content_base.html" %}
+{% load static %}
+{% load i18n %}
+
+{% block page_title %}{% trans "Open Cash Session" %}{% endblock %}
+
+{# Section context for sidebar highlighting #}
+{% block content %}
+{% with current_section="cash_register" section_title=_("Cash Register") %}
+{{ block.super }}
+{% endwith %}
+{% endblock %}
+
+{% block module_tabbar %}
+
+{% include "cash_register/partials/tabbar.html" with current_view='open' %}
+
+{% endblock %}
+
+{% block page_content %}
+{% include "cash_register/partials/open_session_content.html" %}
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function openSessionApp() {
+    return {
+        openingBalance: {{ suggested_balance|default:"0.00" }},
+        notes: '',
+        requireOpeningBalance: {{ config.require_opening_balance|yesno:"true,false" }},
+
+        // Denomination counter
+        showDenominationCounter: false,
+        coins: [
+            { value: 0.01, count: 0 },
+            { value: 0.02, count: 0 },
+            { value: 0.05, count: 0 },
+            { value: 0.10, count: 0 },
+            { value: 0.20, count: 0 },
+            { value: 0.50, count: 0 },
+            { value: 1.00, count: 0 },
+            { value: 2.00, count: 0 },
+        ],
+        bills: [
+            { value: 5, count: 0 },
+            { value: 10, count: 0 },
+            { value: 20, count: 0 },
+            { value: 50, count: 0 },
+            { value: 100, count: 0 },
+            { value: 200, count: 0 },
+            { value: 500, count: 0 },
+        ],
+
+        get calculatedTotal() {
+            let total = 0;
+            this.coins.forEach(coin => {
+                total += coin.value * coin.count;
+            });
+            this.bills.forEach(bill => {
+                total += bill.value * bill.count;
+            });
+            return Math.round(total * 100) / 100;
+        },
+
+        updateDenomination(type, value, count) {
+            const items = type === 'coin' ? this.coins : this.bills;
+            const item = items.find(i => i.value === value);
+            if (item) {
+                item.count = parseInt(count) || 0;
+            }
+        },
+
+        useCalculatedTotal() {
+            this.openingBalance = this.calculatedTotal;
+        },
+
+        getDenominationsData() {
+            const data = {};
+            this.coins.forEach(coin => {
+                if (coin.count > 0) {
+                    data[`coin_${coin.value}`] = coin.count;
+                }
+            });
+            this.bills.forEach(bill => {
+                if (bill.count > 0) {
+                    data[`bill_${bill.value}`] = bill.count;
+                }
+            });
+            return data;
+        },
+
+        formatCurrency(amount) {
+            const currency = '{{ HUB_CONFIG.currency }}';
+            const symbols = {
+                'EUR': '€',
+                'USD': '$',
+                'GBP': '£',
+            };
+            const symbol = symbols[currency] || currency;
+            return symbol + parseFloat(amount).toFixed(2);
+        },
+
+        async showToast(message, color = 'primary') {
+            const toast = document.createElement('ion-toast');
+            toast.message = message;
+            toast.duration = 2000;
+            toast.color = color;
+            document.body.appendChild(toast);
+            await toast.present();
+        }
+    }
+}
+</script>
+{% endblock %}

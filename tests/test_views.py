@@ -342,21 +342,66 @@ class TestSettingsView:
 
         assert response.status_code in [200, 302]
 
-    def test_settings_save(self, client, user):
-        """Test saving settings."""
+    def test_settings_save_json(self, client, user):
+        """Test saving settings via JSON endpoint."""
         client.force_login(user)
 
-        response = client.post('/modules/cash_register/settings/', {
-            'enable_cash_register': 'on',
-            'require_opening_balance': 'on',
-            'require_closing_balance': 'on',
-            'allow_negative_balance': '',
-            'auto_open_session_on_login': 'on',
-            'auto_close_session_on_logout': 'on',
-            'protected_pos_url': '/modules/sales/pos/'
-        })
+        response = client.post(
+            '/modules/cash_register/settings/save/',
+            data=json.dumps({
+                'enable_cash_register': True,
+                'require_opening_balance': True,
+                'require_closing_balance': True,
+                'allow_negative_balance': False,
+                'auto_open_session_on_login': True,
+                'auto_close_session_on_logout': True,
+                'protected_pos_url': '/modules/sales/pos/'
+            }),
+            content_type='application/json'
+        )
 
         assert response.status_code in [200, 302]
+
+        if response.status_code == 200:
+            data = json.loads(response.content)
+            assert data['success'] is True
+
+    def test_settings_save_invalid_json(self, client, user):
+        """Test saving with invalid JSON."""
+        client.force_login(user)
+
+        response = client.post(
+            '/modules/cash_register/settings/save/',
+            data='invalid json',
+            content_type='application/json'
+        )
+
+        assert response.status_code in [400, 302]
+
+    def test_settings_persist(self, client, user):
+        """Test settings are persisted."""
+        client.force_login(user)
+
+        response = client.post(
+            '/modules/cash_register/settings/save/',
+            data=json.dumps({
+                'enable_cash_register': False,
+                'require_opening_balance': False,
+                'require_closing_balance': True,
+                'allow_negative_balance': True,
+                'auto_open_session_on_login': False,
+                'auto_close_session_on_logout': False,
+                'protected_pos_url': '/custom/pos/'
+            }),
+            content_type='application/json'
+        )
+
+        if response.status_code == 200:
+            config = CashRegisterConfig.get_config()
+            assert config.enable_cash_register is False
+            assert config.require_opening_balance is False
+            assert config.allow_negative_balance is True
+            assert config.protected_pos_url == '/custom/pos/'
 
 
 @pytest.mark.django_db

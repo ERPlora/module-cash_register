@@ -1,129 +1,94 @@
-{% load i18n %}
+{% load i18n ui %}
 
 {% if request.htmx %}
-<!-- Tab bar update via OOB swap (only on HTMX navigation) -->
-<div id="dashboard-tabbar" hx-swap-oob="innerHTML">
-<ion-footer>
-{% include "cash_register/partials/tabbar_cash_register.html" with current_view='history' %}
-</ion-footer>
-</div>
+{% include "cash_register/partials/tabbar_cash_register.html" with current_view='history' oob=True %}
 {% endif %}
 
-<div class="p-4">
-    <div class="mb-6">
-        <h1 class="text-3xl font-bold" style="color: var(--ion-text-color);">{% trans "Historial de Sesiones" %}</h1>
-        <p class="text-sm mt-2" style="color: var(--ion-color-medium);">{% trans "Todas tus sesiones de caja" %}</p>
-    </div>
+{% ui_page_header title=_("Session History") %}
 
+<div class="ion-padding">
     <!-- Filters -->
-    <ion-card class="m-0 mb-4">
-        <ion-card-content>
-            <div class="flex flex-wrap gap-4 items-center">
-                <ion-segment value="{{ status_filter|default:'all' }}" style="max-width: 300px;">
-                    <ion-segment-button value="all"
-                        hx-get="{% url 'cash_register:history' %}"
-                        hx-target="#dashboard-content"
-                        hx-push-url="true">
-                        <ion-label>{% trans "Todas" %}</ion-label>
-                    </ion-segment-button>
-                    <ion-segment-button value="open"
-                        hx-get="{% url 'cash_register:history' %}?status=open"
-                        hx-target="#dashboard-content"
-                        hx-push-url="true">
-                        <ion-label>{% trans "Abiertas" %}</ion-label>
-                    </ion-segment-button>
-                    <ion-segment-button value="closed"
-                        hx-get="{% url 'cash_register:history' %}?status=closed"
-                        hx-target="#dashboard-content"
-                        hx-push-url="true">
-                        <ion-label>{% trans "Cerradas" %}</ion-label>
-                    </ion-segment-button>
-                </ion-segment>
-            </div>
-        </ion-card-content>
-    </ion-card>
+    {% ui_card css_class="mb-md" %}
+        <ion-segment value="{{ status_filter|default:'all' }}" style="max-width: 300px;">
+            <ion-segment-button value="all"
+                hx-get="{% url 'cash_register:history' %}"
+                hx-target="#main-content-area"
+                hx-push-url="true">
+                <ion-label>{% trans "All" %}</ion-label>
+            </ion-segment-button>
+            <ion-segment-button value="open"
+                hx-get="{% url 'cash_register:history' %}?status=open"
+                hx-target="#main-content-area"
+                hx-push-url="true">
+                <ion-label>{% trans "Open" %}</ion-label>
+            </ion-segment-button>
+            <ion-segment-button value="closed"
+                hx-get="{% url 'cash_register:history' %}?status=closed"
+                hx-target="#main-content-area"
+                hx-push-url="true">
+                <ion-label>{% trans "Closed" %}</ion-label>
+            </ion-segment-button>
+        </ion-segment>
+    {% endui_card %}
 
     <!-- Sessions Table -->
-    <ion-card class="m-0">
-        <ion-card-content class="p-0">
-            {% if sessions %}
-            <div class="overflow-x-auto">
-                <table class="w-full">
-                    <thead style="background: var(--ion-color-step-50);">
-                        <tr>
-                            <th class="px-4 py-3 text-left text-sm font-medium" style="color: var(--ion-color-medium);">{% trans "Sesión" %}</th>
-                            <th class="px-4 py-3 text-center text-sm font-medium" style="color: var(--ion-color-medium);">{% trans "Estado" %}</th>
-                            <th class="px-4 py-3 text-center text-sm font-medium" style="color: var(--ion-color-medium);">{% trans "Apertura" %}</th>
-                            <th class="px-4 py-3 text-center text-sm font-medium" style="color: var(--ion-color-medium);">{% trans "Cierre" %}</th>
-                            <th class="px-4 py-3 text-right text-sm font-medium" style="color: var(--ion-color-medium);">{% trans "Saldo Inicial" %}</th>
-                            <th class="px-4 py-3 text-right text-sm font-medium" style="color: var(--ion-color-medium);">{% trans "Saldo Final" %}</th>
-                            <th class="px-4 py-3 text-right text-sm font-medium" style="color: var(--ion-color-medium);">{% trans "Diferencia" %}</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for session in sessions %}
-                        <tr class="border-b hover:bg-opacity-50" style="border-color: var(--ion-border-color);">
-                            <td class="px-4 py-3 text-sm">
-                                <a hx-get="{% url 'cash_register:session_detail' session.id %}"
-                                   hx-target="#dashboard-content"
-                                   hx-push-url="true"
-                                   style="color: var(--ion-color-primary); cursor: pointer; font-weight: 500;">
-                                    {{ session.session_number }}
-                                </a>
-                            </td>
-                            <td class="px-4 py-3 text-center">
-                                {% if session.status == 'open' %}
-                                <ion-badge color="success">{% trans "Abierta" %}</ion-badge>
-                                {% else %}
-                                <ion-badge color="medium">{% trans "Cerrada" %}</ion-badge>
-                                {% endif %}
-                            </td>
-                            <td class="px-4 py-3 text-center text-sm" style="color: var(--ion-text-color);">
-                                {{ session.opened_at|date:"d/m/Y H:i" }}
-                            </td>
-                            <td class="px-4 py-3 text-center text-sm" style="color: var(--ion-text-color);">
-                                {% if session.closed_at %}
-                                {{ session.closed_at|date:"d/m/Y H:i" }}
-                                {% else %}
-                                —
-                                {% endif %}
-                            </td>
-                            <td class="px-4 py-3 text-right text-sm" style="color: var(--ion-text-color);">
-                                {{ session.opening_balance|floatformat:2 }} €
-                            </td>
-                            <td class="px-4 py-3 text-right text-sm font-semibold" style="color: var(--ion-text-color);">
-                                {% if session.closing_balance %}
-                                {{ session.closing_balance|floatformat:2 }} €
-                                {% else %}
-                                {{ session.get_current_balance|floatformat:2 }} €
-                                {% endif %}
-                            </td>
-                            <td class="px-4 py-3 text-right text-sm font-semibold"
-                                style="color: var(--ion-color-{% if session.get_difference >= 0 %}success{% else %}danger{% endif %});">
-                                {% if session.status == 'closed' %}
-                                {% if session.get_difference > 0 %}+{% endif %}{{ session.get_difference|floatformat:2 }} €
-                                {% else %}
-                                —
-                                {% endif %}
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-            {% else %}
-            <div class="text-center py-12" style="color: var(--ion-color-medium);">
-                <ion-icon name="time-outline" style="font-size: 64px;"></ion-icon>
-                <p class="mt-4 text-lg">{% trans "No hay sesiones registradas" %}</p>
-                <ion-button class="mt-4"
-                    hx-get="{% url 'cash_register:open_session' %}"
-                    hx-target="#dashboard-content"
-                    hx-push-url="true">
-                    <ion-icon slot="start" name="lock-open-outline"></ion-icon>
-                    {% trans "Abrir Primera Sesión" %}
-                </ion-button>
-            </div>
-            {% endif %}
-        </ion-card-content>
-    </ion-card>
+    {% ui_card css_class="m-0" %}
+        {% if sessions %}
+        <div class="data-table-container">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>{% trans "Session" %}</th>
+                        <th class="cell-center">{% trans "Status" %}</th>
+                        <th class="cell-center">{% trans "Opened" %}</th>
+                        <th class="cell-center">{% trans "Closed" %}</th>
+                        <th class="cell-right">{% trans "Opening Balance" %}</th>
+                        <th class="cell-right">{% trans "Closing Balance" %}</th>
+                        <th class="cell-right">{% trans "Difference" %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for session in sessions %}
+                    <tr>
+                        <td>
+                            <a hx-get="{% url 'cash_register:session_detail' session.id %}"
+                               hx-target="#main-content-area"
+                               hx-push-url="true"
+                               class="text-primary cursor-pointer fw-medium">
+                                {{ session.session_number }}
+                            </a>
+                        </td>
+                        <td class="cell-center">
+                            {% if session.status == 'open' %}
+                            <ion-badge color="success">{% trans "Open" %}</ion-badge>
+                            {% else %}
+                            <ion-badge color="medium">{% trans "Closed" %}</ion-badge>
+                            {% endif %}
+                        </td>
+                        <td class="cell-center">{{ session.opened_at|date:"d/m/Y H:i" }}</td>
+                        <td class="cell-center">{{ session.closed_at|date:"d/m/Y H:i"|default:"—" }}</td>
+                        <td class="cell-right">{{ session.opening_balance|floatformat:2 }} €</td>
+                        <td class="cell-right fw-semibold">
+                            {% if session.closing_balance %}
+                            {{ session.closing_balance|floatformat:2 }} €
+                            {% else %}
+                            {{ session.get_current_balance|floatformat:2 }} €
+                            {% endif %}
+                        </td>
+                        <td class="cell-right fw-semibold {% if session.get_difference >= 0 %}text-success{% else %}text-danger{% endif %}">
+                            {% if session.status == 'closed' %}
+                            {% if session.get_difference > 0 %}+{% endif %}{{ session.get_difference|floatformat:2 }} €
+                            {% else %}
+                            —
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        {% ui_empty_state title=_("No sessions recorded") description=_("Open your first session to get started") icon="time-outline" action_label=_("Open First Session") action_url="/modules/cash-register/open/" %}
+        {% endif %}
+    {% endui_card %}
 </div>

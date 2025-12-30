@@ -1,28 +1,10 @@
-{% extends "core/app_base.html" %}
-{% load static %}
 {% load i18n %}
 
-{% block title %}{% trans "Close Cash Session" %}{% endblock %}
-
-{% block content %}
 <div class="p-4" x-data="closeSessionApp()">
     <ion-card>
-        <ion-card-header class="p-0">
-            <ion-toolbar>
-                <ion-buttons slot="start">
-                    <ion-button
-                        hx-get="{% url 'cash_register:dashboard' %}"
-                        hx-target="#dashboard-content"
-                        hx-push-url="true"
-                        fill="clear">
-                        <ion-icon slot="icon-only" name="arrow-back-outline"></ion-icon>
-                    </ion-button>
-                </ion-buttons>
-                <ion-title>{% trans "Close Cash Session" %}</ion-title>
-                <ion-buttons slot="end">
-                    <ion-note>{{ session.session_number }}</ion-note>
-                </ion-buttons>
-            </ion-toolbar>
+        <ion-card-header>
+            <ion-card-title>{% trans "Close Cash Session" %}</ion-card-title>
+            <ion-card-subtitle>{{ session.session_number }}</ion-card-subtitle>
         </ion-card-header>
 
         <ion-card-content>
@@ -229,7 +211,7 @@
                 <div class="mt-6 flex gap-3">
                     <ion-button
                         hx-get="{% url 'cash_register:dashboard' %}"
-                        hx-target="#dashboard-content"
+                        hx-target="#main-content-area"
                         hx-push-url="true"
                         fill="outline"
                         expand="block"
@@ -251,148 +233,3 @@
         </ion-card-content>
     </ion-card>
 </div>
-{% endblock %}
-
-{% block extra_scripts %}
-<script>
-function closeSessionApp() {
-    return {
-        expectedBalance: {{ expected_balance }},
-        closingBalance: {{ expected_balance }},
-        notes: '',
-        processing: false,
-        requireClosingBalance: {{ config.require_closing_balance|yesno:"true,false" }},
-
-        // Denomination counter
-        showDenominationCounter: false,
-        coins: [
-            { value: 0.01, count: 0 },
-            { value: 0.02, count: 0 },
-            { value: 0.05, count: 0 },
-            { value: 0.10, count: 0 },
-            { value: 0.20, count: 0 },
-            { value: 0.50, count: 0 },
-            { value: 1.00, count: 0 },
-            { value: 2.00, count: 0 },
-        ],
-        bills: [
-            { value: 5, count: 0 },
-            { value: 10, count: 0 },
-            { value: 20, count: 0 },
-            { value: 50, count: 0 },
-            { value: 100, count: 0 },
-            { value: 200, count: 0 },
-            { value: 500, count: 0 },
-        ],
-
-        get difference() {
-            return Math.round((this.closingBalance - this.expectedBalance) * 100) / 100;
-        },
-
-        get calculatedTotal() {
-            let total = 0;
-            this.coins.forEach(coin => {
-                total += coin.value * coin.count;
-            });
-            this.bills.forEach(bill => {
-                total += bill.value * bill.count;
-            });
-            return Math.round(total * 100) / 100;
-        },
-
-        updateDenomination(type, value, count) {
-            const items = type === 'coin' ? this.coins : this.bills;
-            const item = items.find(i => i.value === value);
-            if (item) {
-                item.count = parseInt(count) || 0;
-            }
-        },
-
-        useCalculatedTotal() {
-            this.closingBalance = this.calculatedTotal;
-        },
-
-        getDenominationsData() {
-            const data = {};
-            this.coins.forEach(coin => {
-                if (coin.count > 0) {
-                    data[`coin_${coin.value}`] = coin.count;
-                }
-            });
-            this.bills.forEach(bill => {
-                if (bill.count > 0) {
-                    data[`bill_${bill.value}`] = bill.count;
-                }
-            });
-            return data;
-        },
-
-        async submitForm() {
-            if (this.requireClosingBalance && !this.closingBalance) {
-                await this.showToast('{% trans "Closing balance is required" %}', 'danger');
-                return;
-            }
-
-            // Confirm if there's a significant difference
-            if (Math.abs(this.difference) > 10) {
-                const confirmed = await this.showConfirm(
-                    '{% trans "Large Discrepancy" %}',
-                    `{% trans "There is a difference of" %} ${this.formatCurrency(Math.abs(this.difference))}. {% trans "Are you sure you want to close the session?" %}`
-                );
-
-                if (!confirmed) {
-                    return;
-                }
-            }
-
-            this.processing = true;
-
-            // Submit the form normally (no AJAX, let Django handle it)
-            document.querySelector('form').submit();
-        },
-
-        formatCurrency(amount) {
-            const currency = '{{ HUB_CONFIG.currency }}';
-            const symbols = {
-                'EUR': '€',
-                'USD': '$',
-                'GBP': '£',
-            };
-            const symbol = symbols[currency] || currency;
-            return symbol + parseFloat(amount).toFixed(2);
-        },
-
-        async showToast(message, color = 'primary') {
-            const toast = document.createElement('ion-toast');
-            toast.message = message;
-            toast.duration = 2000;
-            toast.color = color;
-            document.body.appendChild(toast);
-            await toast.present();
-        },
-
-        async showConfirm(header, message) {
-            return new Promise((resolve) => {
-                const alert = document.createElement('ion-alert');
-                alert.header = header;
-                alert.message = message;
-                alert.buttons = [
-                    {
-                        text: '{% trans "Cancel" %}',
-                        role: 'cancel',
-                        handler: () => resolve(false)
-                    },
-                    {
-                        text: '{% trans "Confirm" %}',
-                        role: 'confirm',
-                        handler: () => resolve(true)
-                    }
-                ];
-                document.body.appendChild(alert);
-                alert.present();
-            });
-        }
-    }
-}
-</script>
-{% endblock %}

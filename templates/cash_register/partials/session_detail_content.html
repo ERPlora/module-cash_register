@@ -1,19 +1,19 @@
-{% extends "core/app_base.html" %}
 {% load static %}
 {% load i18n %}
 
-{% block title %}{% trans "Session Detail" %} - {{ session.session_number }}{% endblock %}
+{% if request.htmx %}
+{% include "cash_register/partials/tabbar_cash_register.html" with current_view='history' oob=True %}
+{% endif %}
 
-{% block content %}
-<div class="p-4" x-data="sessionDetailApp()">
+<div class="ion-padding" x-data="sessionDetailApp()">
     <!-- Session Header -->
-    <ion-card class="m-4">
+    <ion-card class="mb-4">
         <ion-card-header class="p-0">
             <ion-toolbar>
                 <ion-buttons slot="start">
                     <ion-button
-                        hx-get="{% url 'cash_register:dashboard' %}"
-                        hx-target="#dashboard-content"
+                        hx-get="{% url 'cash_register:history' %}"
+                        hx-target="#main-content-area"
                         hx-push-url="true"
                         fill="clear">
                         <ion-icon slot="icon-only" name="arrow-back-outline"></ion-icon>
@@ -55,7 +55,7 @@
     </ion-card>
 
     <!-- Financial Summary -->
-    <ion-card>
+    <ion-card class="mb-4">
         <ion-card-header>
             <ion-card-title>{% trans "Financial Summary" %}</ion-card-title>
         </ion-card-header>
@@ -151,7 +151,7 @@
     </ion-card>
 
     <!-- Cash Movements -->
-    <ion-card>
+    <ion-card class="mb-4">
         <ion-card-header>
             <div class="flex justify-between items-center">
                 <ion-card-title>{% trans "Cash Movements" %}</ion-card-title>
@@ -221,7 +221,7 @@
 
     <!-- Cash Counts (Opening/Closing) -->
     {% if counts %}
-    <ion-card>
+    <ion-card class="mb-4">
         <ion-card-header>
             <ion-card-title>{% trans "Cash Counts" %}</ion-card-title>
         </ion-card-header>
@@ -269,7 +269,7 @@
     <div class="mt-4 flex gap-3">
         <ion-button
             hx-get="{% url 'cash_register:close_session' %}"
-            hx-target="#dashboard-content"
+            hx-target="#main-content-area"
             hx-push-url="true"
             expand="block"
             color="danger"
@@ -280,9 +280,7 @@
     </div>
     {% endif %}
 </div>
-{% endblock %}
 
-{% block scripts %}
 <script>
 function sessionDetailApp() {
     return {
@@ -295,4 +293,3 @@ function sessionDetailApp() {
     }
 }
 </script>
-{% endblock %}

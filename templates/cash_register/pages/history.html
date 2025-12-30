@@ -1,0 +1,22 @@
+{% extends "ui/content_base.html" %}
+{% load static %}
+{% load i18n %}
+
+{% block page_title %}{% trans "Cash Register History" %}{% endblock %}
+
+{# Section context for sidebar highlighting #}
+{% block content %}
+{% with current_section="cash_register" section_title=_("Cash Register") %}
+{{ block.super }}
+{% endwith %}
+{% endblock %}
+
+{% block module_tabbar %}
+
+{% include "cash_register/partials/tabbar.html" with current_view='history' %}
+
+{% endblock %}
+
+{% block page_content %}
+{% include "cash_register/partials/history_content.html" %}
+{% endblock %}

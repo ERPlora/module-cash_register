@@ -18,13 +18,16 @@ from .models import (
 
 
 @login_required
-@htmx_view('cash_register/index.html', 'cash_register/partials/dashboard_content.html')
+@htmx_view('cash_register/pages/index.html', 'cash_register/partials/dashboard_content.html')
 def dashboard(request):
     """
     Main dashboard for cash register.
     Shows current user session and stats.
     Supports HTMX for SPA navigation.
     """
+    from django.urls import reverse
+    from apps.core.services.currency_service import format_currency
+
     config = CashRegisterConfig.get_config()
 
     # Get user's current open session
@@ -35,23 +38,44 @@ def dashboard(request):
 
     # Get today's closed sessions for this user
     today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
-    today_sessions = CashSession.objects.filter(
+    today_sessions_qs = CashSession.objects.filter(
         user=request.user,
         status='closed',
         closed_at__gte=today_start
     )
+
+    # Add formatted values to today's sessions
+    today_sessions = []
+    for session in today_sessions_qs:
+        session.closing_balance_formatted = format_currency(session.closing_balance or Decimal('0'))
+        diff = session.get_difference() if hasattr(session, 'get_difference') else Decimal('0')
+        session.difference = diff
+        session.difference_formatted = format_currency(abs(diff))
+        today_sessions.append(session)
 
     # Recent sessions (last 10)
     recent_sessions = CashSession.objects.filter(
         user=request.user
     ).order_by('-opened_at')[:10]
 
-    return {
+    # Build context with formatted values
+    context = {
         'config': config,
         'open_session': open_session,
         'today_sessions': today_sessions,
         'recent_sessions': recent_sessions,
+        'open_session_url': reverse('cash_register:open_session'),
     }
+
+    # Add formatted values for open session
+    if open_session:
+        context['current_balance_formatted'] = format_currency(open_session.get_current_balance())
+        context['total_sales_formatted'] = format_currency(open_session.get_total_sales())
+        context['opening_balance_formatted'] = format_currency(open_session.opening_balance)
+        context['total_in_formatted'] = format_currency(open_session.get_total_in())
+        context['total_out_formatted'] = format_currency(open_session.get_total_out())
+
+    return context
 
 
 @login_required
@@ -129,7 +153,7 @@ def open_session(request):
         'require_opening_balance': config.require_opening_balance,
     }
 
-    return render(request, 'cash_register/open_session.html', context)
+    return render(request, 'cash_register/pages/open_session.html', context)
 
 
 @login_required
@@ -187,7 +211,7 @@ def close_session(request):
         'require_closing_balance': config.require_closing_balance,
     }
 
-    return render(request, 'cash_register/close_session.html', context)
+    return render(request, 'cash_register/pages/close_session.html', context)
 
 
 @login_required
@@ -217,11 +241,11 @@ def session_detail(request, session_id):
         'counts': counts,
     }
 
-    return render(request, 'cash_register/session_detail.html', context)
+    return render(request, 'cash_register/pages/session_detail.html', context)
 
 
 @login_required
-@htmx_view('cash_register/settings.html', 'cash_register/partials/settings_content.html')
+@htmx_view('cash_register/pages/settings.html', 'cash_register/partials/settings_content.html')
 def settings_view(request):
     """Settings page for cash register plugin. Supports HTMX."""
     config = CashRegisterConfig.get_config()
@@ -232,34 +256,6 @@ def settings_view(request):
         status='open'
     ).first()
 
-    if request.method == 'POST':
-        # Update settings
-        config.enable_cash_register = request.POST.get('enable_cash_register') == 'on'
-        config.require_opening_balance = request.POST.get('require_opening_balance') == 'on'
-        config.require_closing_balance = request.POST.get('require_closing_balance') == 'on'
-        config.allow_negative_balance = request.POST.get('allow_negative_balance') == 'on'
-        config.auto_open_session_on_login = request.POST.get('auto_open_session_on_login') == 'on'
-        config.auto_close_session_on_logout = request.POST.get('auto_close_session_on_logout') == 'on'
-
-        # Update protected POS URL
-        protected_url = request.POST.get('protected_pos_url', '').strip()
-        config.protected_pos_url = protected_url if protected_url else '/modules/sales/pos/'
-
-        config.save()
-
-        # Check if this is an HTMX request
-        is_htmx = request.headers.get('HX-Request') == 'true'
-
-        if is_htmx:
-            return HttpResponse('''
-                <ion-chip color="success">
-                    <ion-icon name="checkmark-circle-outline"></ion-icon>
-                    <ion-label>Guardado</ion-label>
-                </ion-chip>
-            ''')
-
-        return JsonResponse({'success': True, 'message': 'Settings saved successfully'})
-
     return {
         'config': config,
         'open_session': open_session,
@@ -267,7 +263,29 @@ def settings_view(request):
 
 
 @login_required
-@htmx_view('cash_register/history.html', 'cash_register/partials/history_content.html')
+@require_http_methods(["POST"])
+def settings_save(request):
+    """Save cash register settings via JSON."""
+    try:
+        data = json.loads(request.body)
+        config = CashRegisterConfig.get_config()
+
+        config.enable_cash_register = data.get('enable_cash_register', True)
+        config.require_opening_balance = data.get('require_opening_balance', True)
+        config.require_closing_balance = data.get('require_closing_balance', True)
+        config.allow_negative_balance = data.get('allow_negative_balance', False)
+        config.protected_pos_url = data.get('protected_pos_url', '/modules/sales/pos/').strip() or '/modules/sales/pos/'
+        config.save()
+
+        return JsonResponse({'success': True, 'message': 'Settings saved'})
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=400)
+
+
+@login_required
+@htmx_view('cash_register/pages/history.html', 'cash_register/partials/history_content.html')
 def history(request):
     """
     Session history view with pagination and filters.

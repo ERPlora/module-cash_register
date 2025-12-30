@@ -1,137 +1,186 @@
-{% load i18n %}
+{% load static i18n ui component_tags %}
 
-{% if request.htmx %}
-<!-- Tab bar update via OOB swap (only on HTMX navigation) -->
-<div id="dashboard-tabbar" hx-swap-oob="innerHTML">
-<ion-footer>
-{% include "cash_register/partials/tabbar_cash_register.html" with current_view='settings' %}
-</ion-footer>
-</div>
-{% endif %}
+{% component "settings_page"
+    title=_("Cash Register Settings")
+    subtitle=_("Configure cash register module behavior")
+    tabbar_template="cash_register/partials/tabbar_cash_register.html"
+    tabbar_view="settings"
+    alpine_app="settingsApp" %}
 
-<div class="p-4">
-    <div class="mb-6">
-        <h1 class="text-3xl font-bold" style="color: var(--ion-text-color);">{% trans "Configuración de Caja" %}</h1>
-        <p class="text-sm mt-2" style="color: var(--ion-color-medium);">{% trans "Ajustes del módulo de caja registradora" %}</p>
-    </div>
-
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <!-- Global Config (Read-only) -->
-        <ion-card class="m-0">
-            <ion-card-header>
-                <ion-card-title>{% trans "Configuración del Hub" %}</ion-card-title>
-                <ion-card-subtitle>{% trans "Solo lectura - se gestiona desde ajustes generales" %}</ion-card-subtitle>
-            </ion-card-header>
+    {% fill "info" %}
+        {# Read-only Hub global config #}
+        <ion-card class="m-0 mb-lg">
             <ion-card-content>
-                <ion-list>
-                    <ion-item>
-                        <ion-icon name="cash-outline" slot="start" style="color: var(--ion-color-primary);"></ion-icon>
-                        <ion-label>
-                            <h3>{% trans "Moneda" %}</h3>
-                            <p>{{ HUB_CONFIG.currency }}</p>
-                        </ion-label>
-                    </ion-item>
-                    <ion-item>
-                        <ion-icon name="business-outline" slot="start" style="color: var(--ion-color-primary);"></ion-icon>
-                        <ion-label>
-                            <h3>{% trans "Nombre del Negocio" %}</h3>
-                            <p>{{ STORE_CONFIG.business_name|default:"No configurado" }}</p>
-                        </ion-label>
-                    </ion-item>
-                </ion-list>
-            </ion-card-content>
-        </ion-card>
-
-        <!-- Plugin Config (Editable) -->
-        <ion-card class="m-0">
-            <ion-card-header>
-                <ion-card-title>{% trans "Configuración del Módulo" %}</ion-card-title>
-            </ion-card-header>
-            <ion-card-content>
-                <form id="settings-form"
-                      hx-post="{% url 'cash_register:settings' %}"
-                      hx-target="#save-status"
-                      hx-swap="innerHTML"
-                      hx-trigger="change delay:500ms">
-                    {% csrf_token %}
-
-                    <ion-list>
-                        <ion-item>
-                            <ion-label>
-                                <h3>{% trans "Activar Caja" %}</h3>
-                                <p>{% trans "Activar/desactivar funcionalidad de caja" %}</p>
-                            </ion-label>
-                            <ion-toggle
-                                slot="end"
-                                name="enable_cash_register"
-                                {% if config.enable_cash_register %}checked{% endif %}>
-                            </ion-toggle>
-                        </ion-item>
-
-                        <ion-item>
-                            <ion-label>
-                                <h3>{% trans "Requerir Saldo Inicial" %}</h3>
-                                <p>{% trans "Requerir conteo al abrir sesión" %}</p>
-                            </ion-label>
-                            <ion-toggle
-                                slot="end"
-                                name="require_opening_balance"
-                                {% if config.require_opening_balance %}checked{% endif %}>
-                            </ion-toggle>
-                        </ion-item>
-
-                        <ion-item>
-                            <ion-label>
-                                <h3>{% trans "Requerir Saldo Final" %}</h3>
-                                <p>{% trans "Requerir conteo al cerrar sesión" %}</p>
-                            </ion-label>
-                            <ion-toggle
-                                slot="end"
-                                name="require_closing_balance"
-                                {% if config.require_closing_balance %}checked{% endif %}>
-                            </ion-toggle>
-                        </ion-item>
-
-                        <ion-item>
-                            <ion-label>
-                                <h3>{% trans "Permitir Saldo Negativo" %}</h3>
-                                <p>{% trans "Permitir balance negativo en caja" %}</p>
-                            </ion-label>
-                            <ion-toggle
-                                slot="end"
-                                name="allow_negative_movements"
-                                {% if config.allow_negative_movements %}checked{% endif %}>
-                            </ion-toggle>
-                        </ion-item>
-                    </ion-list>
-
-                    <!-- Protected URL -->
-                    <div class="mt-4 p-4 rounded-lg" style="background: var(--ion-color-light);">
-                        <ion-label>
-                            <h3 class="font-medium" style="color: var(--ion-text-color);">{% trans "URL Protegida del POS" %}</h3>
-                            <p class="text-xs mt-1" style="color: var(--ion-color-medium);">{% trans "URL que requiere sesión de caja abierta" %}</p>
-                        </ion-label>
-
-                        <div class="flex gap-2 items-center mt-3">
-                            <ion-input
-                                type="text"
-                                name="protected_pos_url"
-                                value="{{ config.protected_pos_url|default:'/modules/sales/pos/' }}"
-                                placeholder="/modules/sales/pos/"
-                                fill="outline"
-                                style="flex: 1;">
-                            </ion-input>
-
-                            <ion-button type="submit" fill="clear" color="primary">
-                                <ion-icon slot="icon-only" name="save-outline"></ion-icon>
-                            </ion-button>
-                        </div>
+                <div class="d-flex align-start gap-sm mb-md">
+                    <ion-icon name="information-circle-outline" style="font-size: 20px; color: var(--color-primary);"></ion-icon>
+                    <div>
+                        <h4 class="fw-semibold mb-xs">{% trans "Hub Global Configuration" %}</h4>
+                        <p class="fs-sm text-secondary m-0">{% trans "This configuration is managed in Hub Settings and applies to all modules" %}</p>
                     </div>
+                </div>
 
-                    <!-- Save Status -->
-                    <div id="save-status" class="text-center mt-4"></div>
-                </form>
+                <div class="d-grid gap-sm" style="grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));">
+                    <div class="p-sm rounded-lg" style="background: var(--bg-color-secondary);">
+                        <div class="fs-xs text-secondary text-uppercase fw-semibold mb-xxs">{% trans "Currency" %}</div>
+                        <div class="fs-lg fw-semibold">{{ HUB_CONFIG.currency }}</div>
+                    </div>
+                    <div class="p-sm rounded-lg" style="background: var(--bg-color-secondary);">
+                        <div class="fs-xs text-secondary text-uppercase fw-semibold mb-xxs">{% trans "Business Name" %}</div>
+                        <div class="fs-lg fw-semibold">{{ STORE_CONFIG.business_name|default:"-" }}</div>
+                    </div>
+                </div>
             </ion-card-content>
         </ion-card>
-    </div>
-</div>
+    {% endfill %}
+
+    {% fill "settings" %}
+        {% component "setting_section" title=_("Session Management") %}
+            {% component "setting_toggle"
+                name="enable_cash_register"
+                title=_("Enable Cash Register")
+                description=_("Enable/disable cash register functionality")
+                checked=config.enable_cash_register %}{% endcomponent %}
+
+            {% component "setting_toggle"
+                name="require_opening_balance"
+                title=_("Require Opening Balance")
+                description=_("Require cash count when opening a session")
+                checked=config.require_opening_balance
+                color="warning" %}{% endcomponent %}
+
+            {% component "setting_toggle"
+                name="require_closing_balance"
+                title=_("Require Closing Balance")
+                description=_("Require cash count when closing a session")
+                checked=config.require_closing_balance
+                color="warning" %}{% endcomponent %}
+
+            {% component "setting_toggle"
+                name="allow_negative_balance"
+                title=_("Allow Negative Balance")
+                description=_("Allow negative balance in cash register")
+                checked=config.allow_negative_balance
+                color="danger" %}{% endcomponent %}
+        {% endcomponent %}
+
+        {% component "setting_section" title=_("POS Integration") %}
+            {% component "setting_input"
+                name="protected_pos_url"
+                title=_("Protected POS URL")
+                description=_("URL that requires an open cash session")
+                value=config.protected_pos_url
+                type="text"
+                placeholder="/modules/sales/pos/" %}{% endcomponent %}
+        {% endcomponent %}
+    {% endfill %}
+
+    {% fill "actions" %}
+        <div class="mt-lg pt-md" style="border-top: 1px solid var(--border-color);">
+            <ion-button
+                color="medium"
+                fill="outline"
+                expand="block"
+                @click="resetToDefaults()">
+                <ion-icon slot="start" name="refresh-outline"></ion-icon>
+                {% trans "Reset to Defaults" %}
+            </ion-button>
+        </div>
+    {% endfill %}
+{% endcomponent %}
+
+<script>
+function settingsApp() {
+    return {
+        settings: {
+            enable_cash_register: {{ config.enable_cash_register|yesno:"true,false" }},
+            require_opening_balance: {{ config.require_opening_balance|yesno:"true,false" }},
+            require_closing_balance: {{ config.require_closing_balance|yesno:"true,false" }},
+            allow_negative_balance: {{ config.allow_negative_balance|yesno:"true,false" }},
+            protected_pos_url: "{{ config.protected_pos_url|default:'/modules/sales/pos/'|escapejs }}"
+        },
+
+        init() {
+            this.$nextTick(() => {
+                this.setupToggle('toggle_enable_cash_register', 'enable_cash_register');
+                this.setupToggle('toggle_require_opening_balance', 'require_opening_balance');
+                this.setupToggle('toggle_require_closing_balance', 'require_closing_balance');
+                this.setupToggle('toggle_allow_negative_balance', 'allow_negative_balance');
+                this.setupInput('input_protected_pos_url', 'protected_pos_url');
+            });
+        },
+
+        setupToggle(refName, settingKey) {
+            const toggle = this.$refs[refName];
+            if (toggle) {
+                toggle.addEventListener('ionChange', (e) => {
+                    this.updateSetting(settingKey, e.detail.checked);
+                });
+            }
+        },
+
+        setupInput(refName, settingKey) {
+            const input = this.$refs[refName];
+            if (input) {
+                input.addEventListener('ionChange', (e) => {
+                    this.updateSetting(settingKey, e.detail.value || '/modules/sales/pos/');
+                });
+            }
+        },
+
+        async updateSetting(key, value) {
+            this.settings[key] = value;
+
+            try {
+                const response = await fetch('{% url "cash_register:settings_save" %}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': Alpine.store('ui').getCsrfToken()
+                    },
+                    body: JSON.stringify(this.settings)
+                });
+
+                const result = await response.json();
+                if (response.ok && result.success) {
+                    Alpine.store('ui').success('{% trans "Settings saved" %}');
+                } else {
+                    throw new Error(result.error || 'Unknown error');
+                }
+            } catch (error) {
+                Alpine.store('ui').error('{% trans "Error saving settings" %}');
+            }
+        },
+
+        async resetToDefaults() {
+            this.settings = {
+                enable_cash_register: true,
+                require_opening_balance: true,
+                require_closing_balance: true,
+                allow_negative_balance: false,
+                protected_pos_url: '/modules/sales/pos/'
+            };
+
+            try {
+                const response = await fetch('{% url "cash_register:settings_save" %}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': Alpine.store('ui').getCsrfToken()
+                    },
+                    body: JSON.stringify(this.settings)
+                });
+
+                const result = await response.json();
+                if (response.ok && result.success) {
+                    Alpine.store('ui').toast('{% trans "Settings reset to defaults" %}', 'warning');
+                    setTimeout(() => window.location.reload(), 1000);
+                } else {
+                    throw new Error(result.error || 'Unknown error');
+                }
+            } catch (error) {
+                Alpine.store('ui').error('{% trans "Error resetting settings" %}');
+            }
+        }
+    }
+}
+</script>
