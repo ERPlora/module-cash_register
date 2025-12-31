@@ -42,6 +42,26 @@
     "url": "/modules/cash_register/",
     "order": 6
   },
+  "tabs": [
+    {
+      "id": "dashboard",
+      "url": "cash_register:dashboard",
+      "icon": "home-outline",
+      "label": "Overview"
+    },
+    {
+      "id": "history",
+      "url": "cash_register:history",
+      "icon": "time-outline",
+      "label": "History"
+    },
+    {
+      "id": "settings",
+      "url": "cash_register:settings",
+      "icon": "settings-outline",
+      "label": "Settings"
+    }
+  ],
   "permissions": [
     "cash_register.view_cashsession",
     "cash_register.open_cashsession",

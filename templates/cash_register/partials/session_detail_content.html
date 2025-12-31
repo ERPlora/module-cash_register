@@ -1,8 +1,7 @@
-{% load static %}
-{% load i18n %}
+{% load static i18n component_tags %}
 
 {% if request.htmx %}
-{% include "cash_register/partials/tabbar_cash_register.html" with current_view='history' oob=True %}
+{% component "tabbar" module_id="cash_register" current_view="history" oob=True %}{% endcomponent %}
 {% endif %}
 
 <div class="ion-padding" x-data="sessionDetailApp()">

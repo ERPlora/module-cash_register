@@ -1,4 +1,4 @@
-{% extends "ui/content_base.html" %}
+{% extends "ui/app_base.html" %}
 {% load static %}
 {% load i18n %}
 
@@ -11,11 +11,7 @@
 {% endwith %}
 {% endblock %}
 
-{% block module_tabbar %}
-
-{% include "cash_register/partials/tabbar.html" with current_view='history' %}
-
-{% endblock %}
+{# Tabbar is now automatically rendered by app_base.html using module_id from context #}
 
 {% block page_content %}
 {% include "cash_register/partials/history_content.html" %}

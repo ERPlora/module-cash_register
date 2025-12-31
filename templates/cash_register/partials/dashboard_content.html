@@ -1,7 +1,7 @@
-{% load i18n ui %}
+{% load i18n ui component_tags %}
 
 {% if request.htmx %}
-{% include "cash_register/partials/tabbar_cash_register.html" with current_view='dashboard' oob=True %}
+{% component "tabbar" module_id="cash_register" current_view="dashboard" oob=True %}{% endcomponent %}
 {% endif %}
 
 {% ui_page_header title=_("Cash Register") subtitle=_("Session and movement management") %}

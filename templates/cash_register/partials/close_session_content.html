@@ -1,4 +1,8 @@
-{% load i18n %}
+{% load i18n component_tags %}
+
+{% if request.htmx %}
+{% component "tabbar" module_id="cash_register" current_view="dashboard" oob=True %}{% endcomponent %}
+{% endif %}
 
 <div class="p-4" x-data="closeSessionApp()">
     <ion-card>
