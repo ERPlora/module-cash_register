@@ -1,14 +1,13 @@
 {% load i18n ui component_tags %}
 
-{% if request.htmx %}
-{% component "tabbar" module_id="cash_register" current_view="dashboard" oob=True %}{% endcomponent %}
-{% endif %}
+{% component "page"
+    title=_("Cash Register")
+    subtitle=_("Session and movement management")
+    module_id="cash_register"
+    tabbar_view="dashboard" %}
 
-{% ui_page_header title=_("Cash Register") subtitle=_("Session and movement management") %}
-
-<div class="ion-padding">
-
-    <!-- Stats Cards -->
+    {% fill "content" %}
+        <!-- Stats Cards -->
     <ion-row class="mb-md">
         <ion-col size="6" size-md="3">
             {% if open_session %}
@@ -151,4 +150,5 @@
         </div>
     {% endui_card %}
     {% endif %}
-</div>
+    {% endfill %}
+{% endcomponent %}

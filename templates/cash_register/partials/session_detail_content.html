@@ -1,11 +1,12 @@
 {% load static i18n component_tags %}
 
-{% if request.htmx %}
-{% component "tabbar" module_id="cash_register" current_view="history" oob=True %}{% endcomponent %}
-{% endif %}
+{% component "page"
+    title=session.session_number
+    module_id="cash_register"
+    tabbar_view="history" %}
 
-<div class="ion-padding" x-data="sessionDetailApp()">
-    <!-- Session Header -->
+    {% fill "content" %}
+        <!-- Session Header -->
     <ion-card class="mb-4">
         <ion-card-header class="p-0">
             <ion-toolbar>
@@ -20,7 +21,7 @@
                 </ion-buttons>
                 <ion-title>{{ session.session_number }}</ion-title>
                 <ion-buttons slot="end">
-                    <ion-badge :color="'{{ session.status }}' === 'open' ? 'success' : 'medium'">
+                    <ion-badge color="{% if session.status == 'open' %}success{% else %}medium{% endif %}">
                         {% if session.status == 'open' %}
                             {% trans "Open" %}
                         {% else %}
@@ -120,13 +121,12 @@
                     </ion-note>
                 </ion-item>
 
-                <ion-item lines="none" :color="difference === 0 ? 'success' : (difference > 0 ? 'warning' : 'danger')">
+                <ion-item lines="none" color="{% if session.difference == 0 %}success{% elif session.difference > 0 %}warning{% else %}danger{% endif %}">
                     <ion-label>
                         <h2>{% trans "Difference" %}</h2>
                     </ion-label>
                     <ion-note slot="end" class="text-2xl font-bold">
-                        <span x-show="difference > 0">+</span>
-                        {{ HUB_CONFIG.currency }} {{ session.difference }}
+                        {% if session.difference > 0 %}+{% endif %}{{ HUB_CONFIG.currency }} {{ session.difference }}
                     </ion-note>
                 </ion-item>
                 {% endif %}
@@ -159,7 +159,7 @@
         </ion-card-header>
 
         <ion-card-content>
-            <ion-segment x-model="movementFilter">
+            <ion-segment id="movement-filter" value="all">
                 <ion-segment-button value="all">
                     <ion-label>{% trans "All" %} ({{ movements.count }})</ion-label>
                 </ion-segment-button>
@@ -178,12 +178,13 @@
                 {% if movements %}
                     {% for movement in movements %}
                     <ion-item
-                        x-show="movementFilter === 'all' || movementFilter === '{{ movement.movement_type }}'"
+                        class="movement-item"
+                        data-type="{{ movement.movement_type }}"
                         lines="full">
                         <ion-icon
                             slot="start"
-                            :name="'{{ movement.movement_type }}' === 'sale' ? 'cart-outline' : ('{{ movement.movement_type }}' === 'in' ? 'arrow-down-circle-outline' : 'arrow-up-circle-outline')"
-                            :color="'{{ movement.movement_type }}' === 'out' ? 'danger' : 'success'">
+                            name="{% if movement.movement_type == 'sale' %}cart-outline{% elif movement.movement_type == 'in' %}arrow-down-circle-outline{% else %}arrow-up-circle-outline{% endif %}"
+                            color="{% if movement.movement_type == 'out' %}danger{% else %}success{% endif %}">
                         </ion-icon>
                         <ion-label>
                             <h3>
@@ -203,7 +204,7 @@
                             {% endif %}
                             <p class="text-xs text-gray-500">{{ movement.created_at|date:"d/m/Y H:i" }}</p>
                         </ion-label>
-                        <ion-note slot="end" :class="'{{ movement.amount }}' < 0 ? 'text-danger' : 'text-success'" class="text-lg font-semibold">
+                        <ion-note slot="end" class="text-lg font-semibold {% if movement.amount < 0 %}text-danger{% else %}text-success{% endif %}">
                             {% if movement.amount >= 0 %}+{% endif %}{{ HUB_CONFIG.currency }} {{ movement.amount }}
                         </ion-note>
                     </ion-item>
@@ -278,17 +279,24 @@
         </ion-button>
     </div>
     {% endif %}
-</div>
+    {% endfill %}
+{% endcomponent %}
 
 <script>
-function sessionDetailApp() {
-    return {
-        movementFilter: 'all',
-        difference: {{ session.difference|default:"0" }},
-
-        init() {
-            console.log('[SESSION DETAIL] Initialized');
-        }
+(function() {
+    var segment = document.getElementById('movement-filter');
+    if (segment) {
+        segment.addEventListener('ionChange', function(e) {
+            var filter = e.detail.value;
+            document.querySelectorAll('.movement-item').forEach(function(item) {
+                var type = item.dataset.type;
+                if (filter === 'all' || filter === type) {
+                    item.style.display = '';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+        });
     }
-}
+})();
 </script>

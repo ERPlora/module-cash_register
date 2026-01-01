@@ -1,11 +1,12 @@
 {% load i18n component_tags %}
 
-{% if request.htmx %}
-{% component "tabbar" module_id="cash_register" current_view="dashboard" oob=True %}{% endcomponent %}
-{% endif %}
+{% component "page"
+    title=_("Open Cash Session")
+    module_id="cash_register"
+    tabbar_view="dashboard" %}
 
-<div class="p-4" x-data="openSessionApp()">
-    <ion-card>
+    {% fill "content" %}
+        <ion-card>
         <ion-card-header>
             <ion-card-title>{% trans "Open Cash Session" %}</ion-card-title>
             <ion-card-subtitle>{{ request.user.first_name }} {{ request.user.last_name }}</ion-card-subtitle>
@@ -37,7 +38,10 @@
             {% endif %}
 
             <!-- Opening Balance Form -->
-            <form method="POST">
+            <form method="POST"
+                  hx-post="{% url 'cash_register:api_open_session' %}"
+                  hx-target="#main-content-area"
+                  hx-push-url="{% url 'cash_register:dashboard' %}">
                 {% csrf_token %}
 
                 <ion-item>
@@ -46,11 +50,12 @@
                         {% if config.require_opening_balance %}<span class="text-danger">*</span>{% endif %}
                     </ion-label>
                     <ion-input
+                        id="opening-balance-input"
                         name="opening_balance"
                         type="number"
                         step="0.01"
-                        x-model="openingBalance"
-                        :required="requireOpeningBalance"
+                        {% if config.require_opening_balance %}required{% endif %}
+                        value="{{ suggested_balance|default:'0.00' }}"
                         placeholder="0.00">
                     </ion-input>
                 </ion-item>
@@ -59,25 +64,25 @@
                     <ion-label position="stacked">{% trans "Notes (Optional)" %}</ion-label>
                     <ion-textarea
                         name="notes"
-                        x-model="notes"
                         rows="3"
                         placeholder="{% trans "Any additional notes..." %}">
                     </ion-textarea>
                 </ion-item>
 
-                <!-- Denomination Counter (Optional) -->
+                <!-- Denomination Counter Toggle -->
                 <div class="mt-4">
                     <ion-button
-                        @click="showDenominationCounter = !showDenominationCounter"
+                        id="denomination-toggle"
                         fill="outline"
-                        expand="block">
+                        expand="block"
+                        onclick="toggleDenominationCounter()">
                         <ion-icon slot="start" name="calculator-outline"></ion-icon>
-                        <span x-text="showDenominationCounter ? '{% trans "Hide Calculator" %}' : '{% trans "Count Denominations" %}'"></span>
+                        <span>{% trans "Count Denominations" %}</span>
                     </ion-button>
                 </div>
 
-                <!-- Denomination Counter Expanded -->
-                <div x-show="showDenominationCounter" class="mt-4" x-transition>
+                <!-- Denomination Counter (hidden by default) -->
+                <div id="denomination-counter" class="mt-4" style="display: none;">
                     <ion-card>
                         <ion-card-header>
                             <ion-card-subtitle>{% trans "Cash Count" %}</ion-card-subtitle>
@@ -87,22 +92,25 @@
                             <p class="font-semibold mb-2">{% trans "Coins" %}</p>
                             <ion-grid class="p-0">
                                 <ion-row>
-                                    <template x-for="coin in coins" :key="coin.value">
-                                        <ion-col size="6" size-md="4">
-                                            <ion-item>
-                                                <ion-label>
-                                                    <span x-text="formatCurrency(coin.value)"></span>
-                                                </ion-label>
-                                                <ion-input
-                                                    type="number"
-                                                    min="0"
-                                                    :value="coin.count"
-                                                    @ionInput="updateDenomination('coin', coin.value, $event.target.value)"
-                                                    placeholder="0">
-                                                </ion-input>
-                                            </ion-item>
-                                        </ion-col>
-                                    </template>
+                                    {% for coin in coins %}
+                                    <ion-col size="6" size-md="4">
+                                        <ion-item>
+                                            <ion-label>{{ HUB_CONFIG.currency }} {{ coin }}</ion-label>
+                                            <ion-input
+                                                type="number"
+                                                min="0"
+                                                name="coin_{{ coin|stringformat:'.2f'|cut:'.' }}"
+                                                class="denomination-input"
+                                                data-value="{{ coin }}"
+                                                placeholder="0"
+                                                hx-get="{% url 'cash_register:htmx_calculate_denominations' %}"
+                                                hx-trigger="input changed delay:200ms"
+                                                hx-target="#calculated-total"
+                                                hx-include=".denomination-input">
+                                            </ion-input>
+                                        </ion-item>
+                                    </ion-col>
+                                    {% endfor %}
                                 </ion-row>
                             </ion-grid>
 
@@ -110,40 +118,45 @@
                             <p class="font-semibold mb-2 mt-4">{% trans "Bills" %}</p>
                             <ion-grid class="p-0">
                                 <ion-row>
-                                    <template x-for="bill in bills" :key="bill.value">
-                                        <ion-col size="6" size-md="4">
-                                            <ion-item>
-                                                <ion-label>
-                                                    <span x-text="formatCurrency(bill.value)"></span>
-                                                </ion-label>
-                                                <ion-input
-                                                    type="number"
-                                                    min="0"
-                                                    :value="bill.count"
-                                                    @ionInput="updateDenomination('bill', bill.value, $event.target.value)"
-                                                    placeholder="0">
-                                                </ion-input>
-                                            </ion-item>
-                                        </ion-col>
-                                    </template>
+                                    {% for bill in bills %}
+                                    <ion-col size="6" size-md="4">
+                                        <ion-item>
+                                            <ion-label>{{ HUB_CONFIG.currency }} {{ bill }}</ion-label>
+                                            <ion-input
+                                                type="number"
+                                                min="0"
+                                                name="bill_{{ bill }}"
+                                                class="denomination-input"
+                                                data-value="{{ bill }}"
+                                                placeholder="0"
+                                                hx-get="{% url 'cash_register:htmx_calculate_denominations' %}"
+                                                hx-trigger="input changed delay:200ms"
+                                                hx-target="#calculated-total"
+                                                hx-include=".denomination-input">
+                                            </ion-input>
+                                        </ion-item>
+                                    </ion-col>
+                                    {% endfor %}
                                 </ion-row>
                             </ion-grid>
 
-                            <!-- Calculated Total -->
-                            <ion-item class="mt-4" color="primary">
-                                <ion-label>
-                                    <h2>{% trans "Calculated Total" %}</h2>
-                                </ion-label>
-                                <ion-note slot="end" class="text-xl font-bold">
-                                    <span x-text="formatCurrency(calculatedTotal)"></span>
-                                </ion-note>
-                            </ion-item>
+                            <!-- Calculated Total (HTMX updated) -->
+                            <div id="calculated-total">
+                                <ion-item class="mt-4" color="primary">
+                                    <ion-label>
+                                        <h2>{% trans "Calculated Total" %}</h2>
+                                    </ion-label>
+                                    <ion-note slot="end" class="text-xl font-bold">
+                                        {{ HUB_CONFIG.currency }} 0.00
+                                    </ion-note>
+                                </ion-item>
+                            </div>
 
                             <ion-button
-                                @click="useCalculatedTotal()"
                                 expand="block"
                                 fill="outline"
-                                class="mt-2">
+                                class="mt-2"
+                                onclick="useCalculatedTotal()">
                                 {% trans "Use This Amount" %}
                             </ion-button>
                         </ion-card-content>
@@ -151,7 +164,7 @@
                 </div>
 
                 <!-- Hidden field for denominations JSON -->
-                <input type="hidden" name="denominations_json" :value="JSON.stringify(getDenominationsData())">
+                <input type="hidden" name="denominations_json" id="denominations-json" value="{}">
 
                 <!-- Action Buttons -->
                 <div class="mt-6 flex gap-3">
@@ -176,4 +189,53 @@
             </form>
         </ion-card-content>
     </ion-card>
-</div>
+    {% endfill %}
+{% endcomponent %}
+
+<script>
+(function() {
+    // Toggle denomination counter visibility
+    window.toggleDenominationCounter = function() {
+        var counter = document.getElementById('denomination-counter');
+        var btn = document.getElementById('denomination-toggle');
+        if (counter.style.display === 'none') {
+            counter.style.display = 'block';
+            btn.querySelector('span').textContent = '{% trans "Hide Calculator" %}';
+        } else {
+            counter.style.display = 'none';
+            btn.querySelector('span').textContent = '{% trans "Count Denominations" %}';
+        }
+    };
+
+    // Use calculated total from denominations
+    window.useCalculatedTotal = function() {
+        var totalEl = document.querySelector('#calculated-total ion-note');
+        if (totalEl) {
+            var text = totalEl.textContent.trim();
+            // Extract numeric value (remove currency symbol)
+            var match = text.match(/[\d.]+/);
+            if (match) {
+                var input = document.getElementById('opening-balance-input');
+                if (input) {
+                    input.value = match[0];
+                }
+            }
+        }
+    };
+
+    // Collect denominations data before form submit
+    document.addEventListener('htmx:configRequest', function(evt) {
+        if (evt.detail.path.includes('open_session') || evt.detail.path.includes('api_open_session')) {
+            var denominations = {};
+            document.querySelectorAll('.denomination-input').forEach(function(input) {
+                var count = parseInt(input.value) || 0;
+                if (count > 0) {
+                    var value = input.dataset.value;
+                    denominations[value] = count;
+                }
+            });
+            document.getElementById('denominations-json').value = JSON.stringify(denominations);
+        }
+    });
+})();
+</script>

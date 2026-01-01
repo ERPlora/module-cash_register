@@ -16,6 +16,8 @@ urlpatterns = [
     path('history/', views.history, name='history'),
     path('settings/', views.settings_view, name='settings'),
     path('settings/save/', views.settings_save, name='settings_save'),
+    path('settings/toggle/', views.settings_toggle, name='settings_toggle'),
+    path('settings/reset/', views.settings_reset, name='settings_reset'),
 
     # API Endpoints
     path('api/session/open/', views.api_open_session, name='api_open_session'),

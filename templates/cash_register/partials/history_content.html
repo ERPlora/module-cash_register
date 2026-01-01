@@ -1,13 +1,12 @@
 {% load i18n ui component_tags %}
 
-{% if request.htmx %}
-{% component "tabbar" module_id="cash_register" current_view="history" oob=True %}{% endcomponent %}
-{% endif %}
+{% component "page"
+    title=_("Session History")
+    module_id="cash_register"
+    tabbar_view="history" %}
 
-{% ui_page_header title=_("Session History") %}
-
-<div class="ion-padding">
-    <!-- Filters -->
+    {% fill "content" %}
+        <!-- Filters -->
     {% ui_card css_class="mb-md" %}
         <ion-segment value="{{ status_filter|default:'all' }}" style="max-width: 300px;">
             <ion-segment-button value="all"
@@ -91,4 +90,5 @@
         {% ui_empty_state title=_("No sessions recorded") description=_("Open your first session to get started") icon="time-outline" action_label=_("Open First Session") action_url="/modules/cash-register/open/" %}
         {% endif %}
     {% endui_card %}
-</div>
+    {% endfill %}
+{% endcomponent %}

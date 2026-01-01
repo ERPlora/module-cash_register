@@ -1,11 +1,32 @@
 {% load static i18n ui component_tags %}
 
+{# Toast listener for HX-Trigger events #}
+<script>
+(function() {
+    if (!window._cashRegisterToastListenerAdded) {
+        window._cashRegisterToastListenerAdded = true;
+        document.body.addEventListener('showToast', function(e) {
+            const detail = e.detail || {};
+            const message = detail.message || 'Done';
+            const color = detail.color || 'success';
+
+            const toast = document.createElement('ion-toast');
+            toast.message = message;
+            toast.duration = 2000;
+            toast.position = 'top';
+            toast.color = color;
+            document.body.appendChild(toast);
+            toast.present();
+        });
+    }
+})();
+</script>
+
 {% component "settings_page"
     title=_("Cash Register Settings")
     subtitle=_("Configure cash register module behavior")
-    page_module_id="cash_register"
-    tabbar_view="settings"
-    alpine_app="settingsApp" %}
+    module_id="cash_register"
+    tabbar_view="settings" %}
 
     {% fill "info" %}
         {# Read-only Hub global config #}
@@ -34,33 +55,39 @@
     {% endfill %}
 
     {% fill "settings" %}
+        {% csrf_token %}
+
         {% component "setting_section" title=_("Session Management") %}
             {% component "setting_toggle"
                 name="enable_cash_register"
                 title=_("Enable Cash Register")
                 description=_("Enable/disable cash register functionality")
-                checked=config.enable_cash_register %}{% endcomponent %}
+                checked=config.enable_cash_register
+                hx_post="/m/cash_register/settings/toggle/" %}{% endcomponent %}
 
             {% component "setting_toggle"
                 name="require_opening_balance"
                 title=_("Require Opening Balance")
                 description=_("Require cash count when opening a session")
                 checked=config.require_opening_balance
-                color="warning" %}{% endcomponent %}
+                color="warning"
+                hx_post="/m/cash_register/settings/toggle/" %}{% endcomponent %}
 
             {% component "setting_toggle"
                 name="require_closing_balance"
                 title=_("Require Closing Balance")
                 description=_("Require cash count when closing a session")
                 checked=config.require_closing_balance
-                color="warning" %}{% endcomponent %}
+                color="warning"
+                hx_post="/m/cash_register/settings/toggle/" %}{% endcomponent %}
 
             {% component "setting_toggle"
                 name="allow_negative_balance"
                 title=_("Allow Negative Balance")
                 description=_("Allow negative balance in cash register")
                 checked=config.allow_negative_balance
-                color="danger" %}{% endcomponent %}
+                color="danger"
+                hx_post="/m/cash_register/settings/toggle/" %}{% endcomponent %}
         {% endcomponent %}
 
         {% component "setting_section" title=_("POS Integration") %}
@@ -75,112 +102,18 @@
     {% endfill %}
 
     {% fill "actions" %}
-        <div class="mt-lg pt-md" style="border-top: 1px solid var(--border-color);">
+        <div class="setting-actions mt-lg pt-md">
             <ion-button
                 color="medium"
                 fill="outline"
                 expand="block"
-                @click="resetToDefaults()">
+                hx-post="{% url 'cash_register:settings_reset' %}"
+                hx-confirm="{% trans 'Reset all settings to defaults?' %}"
+                hx-target="#main-content-area"
+                hx-include="[name='csrfmiddlewaretoken']">
                 <ion-icon slot="start" name="refresh-outline"></ion-icon>
                 {% trans "Reset to Defaults" %}
             </ion-button>
         </div>
     {% endfill %}
 {% endcomponent %}
-
-<script>
-function settingsApp() {
-    return {
-        settings: {
-            enable_cash_register: {{ config.enable_cash_register|yesno:"true,false" }},
-            require_opening_balance: {{ config.require_opening_balance|yesno:"true,false" }},
-            require_closing_balance: {{ config.require_closing_balance|yesno:"true,false" }},
-            allow_negative_balance: {{ config.allow_negative_balance|yesno:"true,false" }},
-            protected_pos_url: "{{ config.protected_pos_url|default:'/modules/sales/pos/'|escapejs }}"
-        },
-
-        init() {
-            this.$nextTick(() => {
-                this.setupToggle('toggle_enable_cash_register', 'enable_cash_register');
-                this.setupToggle('toggle_require_opening_balance', 'require_opening_balance');
-                this.setupToggle('toggle_require_closing_balance', 'require_closing_balance');
-                this.setupToggle('toggle_allow_negative_balance', 'allow_negative_balance');
-                this.setupInput('input_protected_pos_url', 'protected_pos_url');
-            });
-        },
-
-        setupToggle(refName, settingKey) {
-            const toggle = this.$refs[refName];
-            if (toggle) {
-                toggle.addEventListener('ionChange', (e) => {
-                    this.updateSetting(settingKey, e.detail.checked);
-                });
-            }
-        },
-
-        setupInput(refName, settingKey) {
-            const input = this.$refs[refName];
-            if (input) {
-                input.addEventListener('ionChange', (e) => {
-                    this.updateSetting(settingKey, e.detail.value || '/modules/sales/pos/');
-                });
-            }
-        },
-
-        async updateSetting(key, value) {
-            this.settings[key] = value;
-
-            try {
-                const response = await fetch('{% url "cash_register:settings_save" %}', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRFToken': Alpine.store('ui').getCsrfToken()
-                    },
-                    body: JSON.stringify(this.settings)
-                });
-
-                const result = await response.json();
-                if (response.ok && result.success) {
-                    Alpine.store('ui').success('{% trans "Settings saved" %}');
-                } else {
-                    throw new Error(result.error || 'Unknown error');
-                }
-            } catch (error) {
-                Alpine.store('ui').error('{% trans "Error saving settings" %}');
-            }
-        },
-
-        async resetToDefaults() {
-            this.settings = {
-                enable_cash_register: true,
-                require_opening_balance: true,
-                require_closing_balance: true,
-                allow_negative_balance: false,
-                protected_pos_url: '/modules/sales/pos/'
-            };
-
-            try {
-                const response = await fetch('{% url "cash_register:settings_save" %}', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRFToken': Alpine.store('ui').getCsrfToken()
-                    },
-                    body: JSON.stringify(this.settings)
-                });
-
-                const result = await response.json();
-                if (response.ok && result.success) {
-                    Alpine.store('ui').toast('{% trans "Settings reset to defaults" %}', 'warning');
-                    setTimeout(() => window.location.reload(), 1000);
-                } else {
-                    throw new Error(result.error || 'Unknown error');
-                }
-            } catch (error) {
-                Alpine.store('ui').error('{% trans "Error resetting settings" %}');
-            }
-        }
-    }
-}
-</script>

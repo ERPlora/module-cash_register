@@ -2,6 +2,7 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.http import JsonResponse, HttpResponse
 from django.views.decorators.http import require_http_methods
 from django.utils import timezone
+from django.utils.translation import gettext as _
 from django.db.models import Sum, Count
 from decimal import Decimal, InvalidOperation
 import json
@@ -282,6 +283,63 @@ def settings_save(request):
         return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=400)
+
+
+@login_required
+@require_http_methods(["POST"])
+def settings_toggle(request):
+    """HTMX: Toggle a single setting and return success response."""
+    # Support both 'name'/'value' (new components) and 'setting_name'/'setting_value' (legacy)
+    name = request.POST.get('name') or request.POST.get('setting_name')
+    value = request.POST.get('value', request.POST.get('setting_value', 'false'))
+    setting_value = value == 'true' or value is True
+
+    config = CashRegisterConfig.get_config()
+
+    if not name or not hasattr(config, name):
+        return JsonResponse({'success': False, 'error': 'Invalid setting'}, status=400)
+
+    setattr(config, name, setting_value)
+    config.save()
+
+    response = HttpResponse(status=204)
+    response['HX-Trigger'] = json.dumps({
+        'showToast': {'message': str(_('Setting saved')), 'color': 'success'}
+    })
+    return response
+
+
+@login_required
+@require_http_methods(["POST"])
+def settings_reset(request):
+    """HTMX: Reset all settings to defaults and return settings page."""
+    config = CashRegisterConfig.get_config()
+
+    # Reset to defaults
+    config.enable_cash_register = True
+    config.require_opening_balance = True
+    config.require_closing_balance = True
+    config.allow_negative_balance = False
+    config.protected_pos_url = '/modules/sales/pos/'
+    config.save()
+
+    # Get open_session for tabbar
+    open_session = CashSession.objects.filter(
+        user=request.user,
+        status='open'
+    ).first()
+
+    # Return the settings page content with toast
+    response = render(request, 'cash_register/partials/settings_content.html', {
+        'config': config,
+        'open_session': open_session,
+        'HUB_CONFIG': HubConfig.get_config(),
+        'STORE_CONFIG': StoreConfig.get_config(),
+    })
+    response['HX-Trigger'] = json.dumps({
+        'showToast': {'message': _('Settings reset to defaults'), 'color': 'warning'}
+    })
+    return response
 
 
 @login_required
