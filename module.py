@@ -13,6 +13,16 @@ MODULE_ICON = "cash-outline"
 MODULE_VERSION = "1.0.0"
 MODULE_CATEGORY = "pos"
 
+# Target Industries (business verticals this module is designed for)
+MODULE_INDUSTRIES = [
+    "retail",     # Retail stores
+    "restaurant", # Restaurants
+    "bar",        # Bars & pubs
+    "cafe",       # Cafes & bakeries
+    "fast_food",  # Fast food
+    "salon",      # Beauty & wellness
+]
+
 # Sidebar Menu Configuration
 MENU = {
     "label": _("Cash Register"),
