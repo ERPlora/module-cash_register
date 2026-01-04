@@ -65,10 +65,35 @@ SETTINGS = {
 }
 
 # Permissions
+# Format: (action_suffix, display_name) -> becomes "cash_register.action_suffix"
 PERMISSIONS = [
-    "cash_register.view_cashsession",
-    "cash_register.open_cashsession",
-    "cash_register.close_cashsession",
-    "cash_register.add_cashmovement",
-    "cash_register.view_cashmovement",
+    ("view_cashsession", _("Can view cash sessions")),
+    ("open_cashsession", _("Can open cash sessions")),
+    ("close_cashsession", _("Can close cash sessions")),
+    ("add_cashmovement", _("Can add cash movements")),
+    ("view_cashmovement", _("Can view cash movements")),
+    ("delete_cashmovement", _("Can delete cash movements")),
+    ("view_reports", _("Can view cash reports")),
 ]
+
+# Role Permissions - Default permissions for each system role in this module
+# Keys are role names, values are lists of permission suffixes (without module prefix)
+# Use ["*"] to grant all permissions in this module
+ROLE_PERMISSIONS = {
+    "admin": ["*"],  # Full access to all cash register permissions
+    "manager": [
+        "view_cashsession",
+        "open_cashsession",
+        "close_cashsession",
+        "add_cashmovement",
+        "view_cashmovement",
+        "delete_cashmovement",
+        "view_reports",
+    ],
+    "employee": [
+        "view_cashsession",
+        "open_cashsession",
+        "add_cashmovement",
+        "view_cashmovement",
+    ],
+}
