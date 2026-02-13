@@ -1,50 +1,42 @@
-{% load i18n %}
+{% load i18n djicons %}
 
-<ion-tab-bar>
-    <ion-tab-button
-        hx-get="{% url 'cash_register:dashboard' %}"
-        hx-target="#dashboard-content"
-        hx-push-url="true"
-        class="{% if current_view == 'dashboard' %}tab-selected{% endif %}">
-        <ion-icon name="home-outline"></ion-icon>
-        <ion-label>{% trans "Inicio" %}</ion-label>
-    </ion-tab-button>
+<nav class="tabs tabs--bottom">
+    <div class="tabs__nav">
+        <button class="tabs__item {% if current_view == 'dashboard' %}is-active{% endif %}"
+            hx-get="{% url 'cash_register:dashboard' %}"
+            hx-target="#main-content-area" hx-push-url="true">
+            {% icon "home-outline" %}
+            <span>{% trans "Home" %}</span>
+        </button>
 
-    {% if open_session %}
-    <ion-tab-button
-        hx-get="{% url 'cash_register:close_session' %}"
-        hx-target="#dashboard-content"
-        hx-push-url="true"
-        class="{% if current_view == 'close' %}tab-selected{% endif %}">
-        <ion-icon name="lock-closed-outline"></ion-icon>
-        <ion-label>{% trans "Cerrar" %}</ion-label>
-    </ion-tab-button>
-    {% else %}
-    <ion-tab-button
-        hx-get="{% url 'cash_register:open_session' %}"
-        hx-target="#dashboard-content"
-        hx-push-url="true"
-        class="{% if current_view == 'open' %}tab-selected{% endif %}">
-        <ion-icon name="lock-open-outline"></ion-icon>
-        <ion-label>{% trans "Abrir" %}</ion-label>
-    </ion-tab-button>
-    {% endif %}
+        {% if open_session %}
+        <button class="tabs__item {% if current_view == 'close' %}is-active{% endif %}"
+            hx-get="{% url 'cash_register:close_session' %}"
+            hx-target="#main-content-area" hx-push-url="true">
+            {% icon "lock-closed-outline" %}
+            <span>{% trans "Close" %}</span>
+        </button>
+        {% else %}
+        <button class="tabs__item {% if current_view == 'open' %}is-active{% endif %}"
+            hx-get="{% url 'cash_register:open_session' %}"
+            hx-target="#main-content-area" hx-push-url="true">
+            {% icon "lock-open-outline" %}
+            <span>{% trans "Open" %}</span>
+        </button>
+        {% endif %}
 
-    <ion-tab-button
-        hx-get="{% url 'cash_register:history' %}"
-        hx-target="#dashboard-content"
-        hx-push-url="true"
-        class="{% if current_view == 'history' %}tab-selected{% endif %}">
-        <ion-icon name="time-outline"></ion-icon>
-        <ion-label>{% trans "Historial" %}</ion-label>
-    </ion-tab-button>
+        <button class="tabs__item {% if current_view == 'history' %}is-active{% endif %}"
+            hx-get="{% url 'cash_register:history' %}"
+            hx-target="#main-content-area" hx-push-url="true">
+            {% icon "time-outline" %}
+            <span>{% trans "History" %}</span>
+        </button>
 
-    <ion-tab-button
-        hx-get="{% url 'cash_register:settings' %}"
-        hx-target="#dashboard-content"
-        hx-push-url="true"
-        class="{% if current_view == 'settings' %}tab-selected{% endif %}">
-        <ion-icon name="settings-outline"></ion-icon>
-        <ion-label>{% trans "Config" %}</ion-label>
-    </ion-tab-button>
-</ion-tab-bar>
+        <button class="tabs__item {% if current_view == 'settings' %}is-active{% endif %}"
+            hx-get="{% url 'cash_register:settings' %}"
+            hx-target="#main-content-area" hx-push-url="true">
+            {% icon "settings-outline" %}
+            <span>{% trans "Settings" %}</span>
+        </button>
+    </div>
+</nav>

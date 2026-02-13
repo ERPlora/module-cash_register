@@ -62,7 +62,7 @@ class TestApiOpenSession:
         client.force_login(user)
 
         response = client.post(
-            '/modules/cash_register/api/open/',
+            '/m/cash_register/api/open/',
             data=json.dumps({
                 'opening_balance': 100.00,
                 'notes': 'Start of day'
@@ -78,7 +78,7 @@ class TestApiOpenSession:
         client.force_login(user)
 
         response = client.post(
-            '/modules/cash_register/api/open/',
+            '/m/cash_register/api/open/',
             data=json.dumps({
                 'opening_balance': 200.00
             }),
@@ -98,7 +98,7 @@ class TestApiCloseSession:
         client.force_login(user)
 
         response = client.post(
-            '/modules/cash_register/api/close/',
+            '/m/cash_register/api/close/',
             data=json.dumps({
                 'closing_balance': 150.00,
                 'notes': 'End of day'
@@ -113,7 +113,7 @@ class TestApiCloseSession:
         client.force_login(user)
 
         response = client.post(
-            '/modules/cash_register/api/close/',
+            '/m/cash_register/api/close/',
             data=json.dumps({
                 'closing_balance': 100.00
             }),
@@ -133,7 +133,7 @@ class TestApiAddMovement:
         client.force_login(user)
 
         response = client.post(
-            '/modules/cash_register/api/movement/',
+            '/m/cash_register/api/movement/',
             data=json.dumps({
                 'movement_type': 'sale',
                 'amount': 50.00,
@@ -150,7 +150,7 @@ class TestApiAddMovement:
         client.force_login(user)
 
         response = client.post(
-            '/modules/cash_register/api/movement/',
+            '/m/cash_register/api/movement/',
             data=json.dumps({
                 'movement_type': 'in',
                 'amount': 100.00,
@@ -166,7 +166,7 @@ class TestApiAddMovement:
         client.force_login(user)
 
         response = client.post(
-            '/modules/cash_register/api/movement/',
+            '/m/cash_register/api/movement/',
             data=json.dumps({
                 'movement_type': 'out',
                 'amount': 30.00,
@@ -186,7 +186,7 @@ class TestApiCurrentSession:
         """Test getting current session."""
         client.force_login(user)
 
-        response = client.get('/modules/cash_register/api/current/')
+        response = client.get('/m/cash_register/api/current/')
 
         assert response.status_code in [200, 302]
 
@@ -194,7 +194,7 @@ class TestApiCurrentSession:
         """Test getting current session when none exists."""
         client.force_login(user)
 
-        response = client.get('/modules/cash_register/api/current/')
+        response = client.get('/m/cash_register/api/current/')
 
         # Should return 404 or redirect
         assert response.status_code in [302, 404]
@@ -215,7 +215,7 @@ class TestApiSessionMovements:
 
         client.force_login(user)
 
-        response = client.get(f'/modules/cash_register/api/session/{open_session.id}/movements/')
+        response = client.get(f'/m/cash_register/api/session/{open_session.id}/movements/')
 
         assert response.status_code in [200, 302]
 
@@ -225,7 +225,7 @@ class TestApiSessionMovements:
 
         import uuid
         fake_id = uuid.uuid4()
-        response = client.get(f'/modules/cash_register/api/session/{fake_id}/movements/')
+        response = client.get(f'/m/cash_register/api/session/{fake_id}/movements/')
 
         assert response.status_code in [302, 404]
 
@@ -238,7 +238,7 @@ class TestSettingsView:
         """Test GET settings page."""
         client.force_login(user)
 
-        response = client.get('/modules/cash_register/settings/')
+        response = client.get('/m/cash_register/settings/')
 
         assert response.status_code in [200, 302]
 
@@ -247,7 +247,7 @@ class TestSettingsView:
         client.force_login(user)
 
         response = client.get(
-            '/modules/cash_register/settings/',
+            '/m/cash_register/settings/',
             HTTP_HX_REQUEST='true'
         )
 
@@ -257,14 +257,14 @@ class TestSettingsView:
         """Test saving settings."""
         client.force_login(user)
 
-        response = client.post('/modules/cash_register/settings/', {
+        response = client.post('/m/cash_register/settings/', {
             'enable_cash_register': 'on',
             'require_opening_balance': 'on',
             'require_closing_balance': 'on',
             'allow_negative_balance': '',
             'auto_open_session_on_login': 'on',
             'auto_close_session_on_logout': 'on',
-            'protected_pos_url': '/modules/sales/pos/'
+            'protected_pos_url': '/m/sales/pos/'
         })
 
         assert response.status_code in [200, 302]
@@ -278,7 +278,7 @@ class TestHistoryView:
         """Test GET history page."""
         client.force_login(user)
 
-        response = client.get('/modules/cash_register/history/')
+        response = client.get('/m/cash_register/history/')
 
         assert response.status_code in [200, 302]
 
@@ -287,7 +287,7 @@ class TestHistoryView:
         client.force_login(user)
 
         response = client.get(
-            '/modules/cash_register/history/',
+            '/m/cash_register/history/',
             HTTP_HX_REQUEST='true'
         )
 
@@ -297,7 +297,7 @@ class TestHistoryView:
         """Test history filter by status."""
         client.force_login(user)
 
-        response = client.get('/modules/cash_register/history/?status=closed')
+        response = client.get('/m/cash_register/history/?status=closed')
 
         assert response.status_code in [200, 302]
 
@@ -310,7 +310,7 @@ class TestSessionDetailView:
         """Test GET session detail page."""
         client.force_login(user)
 
-        response = client.get(f'/modules/cash_register/session/{closed_session.id}/')
+        response = client.get(f'/m/cash_register/session/{closed_session.id}/')
 
         assert response.status_code in [200, 302]
 
@@ -320,7 +320,7 @@ class TestSessionDetailView:
 
         import uuid
         fake_id = uuid.uuid4()
-        response = client.get(f'/modules/cash_register/session/{fake_id}/')
+        response = client.get(f'/m/cash_register/session/{fake_id}/')
 
         assert response.status_code in [302, 404]
 
@@ -334,7 +334,7 @@ class TestHtmxCalculateDenominations:
         client.force_login(user)
 
         response = client.post(
-            '/modules/cash_register/htmx/calculate-denominations/',
+            '/m/cash_register/htmx/calculate-denominations/',
             data=json.dumps({
                 'denominations': {
                     'bill_50': 2,
@@ -357,7 +357,7 @@ class TestHtmxCalculateDifference:
         client.force_login(user)
 
         response = client.post(
-            '/modules/cash_register/htmx/calculate-difference/',
+            '/m/cash_register/htmx/calculate-difference/',
             data=json.dumps({
                 'expected': 100.00,
                 'actual': 95.00

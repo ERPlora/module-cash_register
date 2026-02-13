@@ -1,148 +1,181 @@
+from decimal import Decimal
+
 from django.db import models
 from django.utils import timezone
+from django.utils.translation import gettext_lazy as _
 from django.core.validators import MinValueValidator
-from decimal import Decimal
-from apps.accounts.models import LocalUser
-import uuid
+
+from apps.core.models import HubBaseModel
 
 
-class CashRegisterConfig(models.Model):
-    """
-    Configuración del plugin Cash Register (Singleton).
+# ---------------------------------------------------------------------------
+# Settings
+# ---------------------------------------------------------------------------
 
-    En esta versión simplificada:
-    - El Hub ES la caja registradora única
-    - Las sesiones se abren/cierran automáticamente con login/logout de usuarios
-    """
-    id = models.AutoField(primary_key=True)
+class CashRegisterSettings(HubBaseModel):
+    """Per-hub cash register configuration."""
 
-    # Plugin settings
     enable_cash_register = models.BooleanField(
+        _('Enable Cash Register'),
         default=True,
-        help_text="Enable/disable cash register functionality"
     )
     require_opening_balance = models.BooleanField(
+        _('Require Opening Balance'),
         default=False,
-        help_text="Require manual cash count when user logs in (if False, uses previous closing balance)"
+        help_text=_('Require manual cash count when opening a session.'),
     )
     require_closing_balance = models.BooleanField(
+        _('Require Closing Balance'),
         default=True,
-        help_text="Require manual cash count when user logs out"
+        help_text=_('Require manual cash count when closing a session.'),
     )
     allow_negative_balance = models.BooleanField(
+        _('Allow Negative Balance'),
         default=False,
-        help_text="Allow cash balance to go negative"
     )
     auto_open_session_on_login = models.BooleanField(
+        _('Auto Open on Login'),
         default=True,
-        help_text="Automatically open cash session when user logs in"
+        help_text=_('Automatically open a cash session when user logs in.'),
     )
     auto_close_session_on_logout = models.BooleanField(
+        _('Auto Close on Logout'),
         default=True,
-        help_text="Automatically close cash session when user logs out"
+        help_text=_('Automatically close session when user logs out.'),
     )
     protected_pos_url = models.CharField(
+        _('Protected POS URL'),
         max_length=200,
-        default='/plugins/sales/pos/',
+        default='/m/sales/pos/',
         blank=True,
-        help_text="URL that requires open cash session (default: /plugins/sales/pos/)"
+        help_text=_('URL that requires an open cash session.'),
     )
 
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        db_table = 'cash_register_config'
-        verbose_name = 'Cash Register Configuration'
-        verbose_name_plural = 'Cash Register Configuration'
+    class Meta(HubBaseModel.Meta):
+        db_table = 'cash_register_settings'
+        verbose_name = _('Cash Register Settings')
+        verbose_name_plural = _('Cash Register Settings')
+        unique_together = [('hub_id',)]
 
     def __str__(self):
-        return "Cash Register Configuration"
+        return f"Cash Register Settings (hub {self.hub_id})"
 
     @classmethod
-    def get_config(cls):
-        """Get or create singleton config"""
-        config, created = cls.objects.get_or_create(pk=1)
-        return config
+    def get_settings(cls, hub_id):
+        settings, _ = cls.all_objects.get_or_create(hub_id=hub_id)
+        return settings
 
 
-class CashSession(models.Model):
+# ---------------------------------------------------------------------------
+# Cash Register (physical device)
+# ---------------------------------------------------------------------------
+
+class CashRegister(HubBaseModel):
+    """Physical cash register or terminal."""
+
+    name = models.CharField(_('Name'), max_length=100)
+    is_active = models.BooleanField(_('Active'), default=True)
+
+    class Meta(HubBaseModel.Meta):
+        db_table = 'cash_register_register'
+        verbose_name = _('Cash Register')
+        verbose_name_plural = _('Cash Registers')
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+    @property
+    def current_session(self):
+        return self.sessions.filter(status='open', is_deleted=False).first()
+
+    @property
+    def is_open(self):
+        return self.current_session is not None
+
+
+# ---------------------------------------------------------------------------
+# Cash Session
+# ---------------------------------------------------------------------------
+
+class CashSession(HubBaseModel):
     """
-    Sesión de caja de un usuario.
-
-    Flujo simplificado:
-    1. Usuario hace login con PIN → Se abre CashSession automáticamente
-    2. Usuario trabaja (ventas se registran automáticamente)
-    3. Usuario hace logout → Se cierra CashSession con conteo final
+    Cash register session from opening to closing.
+    User-centric: one session per user.
     """
+
     STATUS_CHOICES = [
-        ('open', 'Open'),
-        ('closed', 'Closed'),
+        ('open', _('Open')),
+        ('closed', _('Closed')),
+        ('suspended', _('Suspended')),
     ]
 
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-
-    # Usuario que tiene la sesión
     user = models.ForeignKey(
-        LocalUser,
+        'accounts.LocalUser',
         on_delete=models.CASCADE,
         related_name='cash_sessions',
-        help_text="User who owns this session"
+        verbose_name=_('User'),
     )
-
-    # Session info
+    register = models.ForeignKey(
+        CashRegister,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='sessions',
+        verbose_name=_('Register'),
+    )
     session_number = models.CharField(
+        _('Session Number'),
         max_length=50,
-        unique=True,
-        help_text="Auto-generated session number"
+        db_index=True,
     )
     status = models.CharField(
+        _('Status'),
         max_length=20,
         choices=STATUS_CHOICES,
-        default='open'
+        default='open',
     )
 
     # Opening
-    opened_at = models.DateTimeField(auto_now_add=True)
+    opened_at = models.DateTimeField(_('Opened At'), auto_now_add=True)
     opening_balance = models.DecimalField(
-        max_digits=10,
+        _('Opening Balance'),
+        max_digits=12,
         decimal_places=2,
         default=Decimal('0.00'),
         validators=[MinValueValidator(Decimal('0.00'))],
-        help_text="Cash in register at session opening"
     )
-    opening_notes = models.TextField(blank=True)
+    opening_notes = models.TextField(_('Opening Notes'), blank=True, default='')
 
     # Closing
-    closed_at = models.DateTimeField(null=True, blank=True)
+    closed_at = models.DateTimeField(_('Closed At'), null=True, blank=True)
     closing_balance = models.DecimalField(
-        max_digits=10,
+        _('Closing Balance'),
+        max_digits=12,
         decimal_places=2,
         null=True,
         blank=True,
-        help_text="Cash in register at session closing"
     )
     expected_balance = models.DecimalField(
-        max_digits=10,
+        _('Expected Balance'),
+        max_digits=12,
         decimal_places=2,
         null=True,
         blank=True,
-        help_text="Expected balance based on movements"
     )
     difference = models.DecimalField(
-        max_digits=10,
+        _('Difference'),
+        max_digits=12,
         decimal_places=2,
         null=True,
         blank=True,
-        help_text="Difference between expected and actual closing balance"
     )
-    closing_notes = models.TextField(blank=True)
+    closing_notes = models.TextField(_('Closing Notes'), blank=True, default='')
 
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
+    class Meta(HubBaseModel.Meta):
         db_table = 'cash_register_session'
+        verbose_name = _('Cash Session')
+        verbose_name_plural = _('Cash Sessions')
         ordering = ['-opened_at']
         indexes = [
             models.Index(fields=['user', 'status']),
@@ -150,156 +183,167 @@ class CashSession(models.Model):
         ]
 
     def __str__(self):
-        return f"Session {self.session_number} - {self.user.name} ({self.status})"
+        return f"Session {self.session_number} ({self.status})"
 
     def save(self, *args, **kwargs):
-        # Auto-generate session number
         if not self.session_number:
-            timestamp = timezone.now().strftime('%Y%m%d%H%M%S')
-            user_initials = self.user.get_initials()
-            self.session_number = f"CS-{user_initials}-{timestamp}"
+            self.session_number = self.generate_session_number()
         super().save(*args, **kwargs)
 
+    def generate_session_number(self):
+        timestamp = timezone.now().strftime('%Y%m%d%H%M%S')
+        initials = ''
+        if self.user:
+            initials = getattr(self.user, 'get_initials', lambda: 'XX')()
+        return f"CS-{initials}-{timestamp}"
+
     def close_session(self, closing_balance, notes=''):
-        """Close the session and calculate differences"""
+        """Close session and calculate differences."""
         self.status = 'closed'
         self.closed_at = timezone.now()
-        self.closing_balance = closing_balance
+        self.closing_balance = Decimal(str(closing_balance))
         self.closing_notes = notes
 
-        # Calculate expected balance
         movements_total = self.movements.aggregate(
             total=models.Sum('amount')
         )['total'] or Decimal('0.00')
-
         self.expected_balance = self.opening_balance + movements_total
-        self.difference = closing_balance - self.expected_balance
-
+        self.difference = self.closing_balance - self.expected_balance
         self.save()
 
     def get_total_sales(self):
-        """Get total sales for this session"""
         return self.movements.filter(
-            movement_type='sale'
+            movement_type='sale',
         ).aggregate(total=models.Sum('amount'))['total'] or Decimal('0.00')
 
     def get_total_in(self):
-        """Get total cash in movements"""
         return self.movements.filter(
-            movement_type='in'
+            movement_type='in',
         ).aggregate(total=models.Sum('amount'))['total'] or Decimal('0.00')
 
     def get_total_out(self):
-        """Get total cash out movements (returned as positive number)"""
         total = self.movements.filter(
-            movement_type='out'
+            movement_type='out',
+        ).aggregate(total=models.Sum('amount'))['total'] or Decimal('0.00')
+        return abs(total)
+
+    def get_total_refunds(self):
+        total = self.movements.filter(
+            movement_type='refund',
         ).aggregate(total=models.Sum('amount'))['total'] or Decimal('0.00')
         return abs(total)
 
     def get_current_balance(self):
-        """Get current balance (opening + all movements)"""
         movements_total = self.movements.aggregate(
             total=models.Sum('amount')
         )['total'] or Decimal('0.00')
         return self.opening_balance + movements_total
 
     def get_duration(self):
-        """Get session duration as formatted string"""
         if self.status == 'open':
             duration = timezone.now() - self.opened_at
         elif self.closed_at:
             duration = self.closed_at - self.opened_at
         else:
             return "N/A"
-
         hours = int(duration.total_seconds() // 3600)
         minutes = int((duration.total_seconds() % 3600) // 60)
-
-        if hours > 0:
-            return f"{hours}h {minutes}m"
-        else:
-            return f"{minutes}m"
-
-    def get_difference(self):
-        """Get the difference (for compatibility)"""
-        return self.difference if self.difference else Decimal('0.00')
+        return f"{hours}h {minutes}m" if hours > 0 else f"{minutes}m"
 
     @classmethod
-    def get_current_session(cls):
-        """Get the currently open session (if any)"""
-        return cls.objects.filter(status='open').first()
+    def get_current_session(cls, hub_id, user):
+        """Get the currently open session for this user in this hub."""
+        return cls.objects.filter(
+            hub_id=hub_id, user=user, status='open', is_deleted=False,
+        ).first()
 
     @classmethod
-    def open_for_user(cls, user, opening_balance=None):
-        """
-        Open a new cash session for a user.
-        If opening_balance is None, uses last closing balance.
-        """
-        # Check if user already has an open session
-        existing = cls.objects.filter(user=user, status='open').first()
+    def open_for_user(cls, hub_id, user, opening_balance=None, register=None):
+        """Open a new session. Reuses last closing balance if none given."""
+        existing = cls.objects.filter(
+            hub_id=hub_id, user=user, status='open', is_deleted=False,
+        ).first()
         if existing:
             return existing
 
-        # Get opening balance
         if opening_balance is None:
-            # Use last closing balance from this user's previous session
-            last_session = cls.objects.filter(
-                user=user,
-                status='closed'
+            last = cls.objects.filter(
+                hub_id=hub_id, user=user, status='closed', is_deleted=False,
             ).order_by('-closed_at').first()
+            opening_balance = last.closing_balance if last and last.closing_balance else Decimal('0.00')
 
-            opening_balance = last_session.closing_balance if last_session else Decimal('0.00')
-
-        # Create new session
-        session = cls.objects.create(
+        return cls.objects.create(
+            hub_id=hub_id,
             user=user,
-            opening_balance=opening_balance
+            register=register,
+            opening_balance=opening_balance,
         )
 
-        return session
 
+# ---------------------------------------------------------------------------
+# Cash Movement
+# ---------------------------------------------------------------------------
 
-class CashMovement(models.Model):
-    """
-    Movimiento de dinero en la caja.
-    Se registra automáticamente cuando hay una venta.
-    """
-    MOVEMENT_TYPE_CHOICES = [
-        ('sale', 'Sale'),           # Venta en efectivo
-        ('in', 'Cash In'),          # Entrada de dinero (cambio, depósito)
-        ('out', 'Cash Out'),        # Salida de dinero (gastos, retiro)
+class CashMovement(HubBaseModel):
+    """Cash movement within a session."""
+
+    MOVEMENT_TYPES = [
+        ('sale', _('Sale')),
+        ('refund', _('Refund')),
+        ('in', _('Cash In')),
+        ('out', _('Cash Out')),
     ]
 
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    PAYMENT_METHODS = [
+        ('cash', _('Cash')),
+        ('card', _('Card')),
+        ('transfer', _('Transfer')),
+        ('other', _('Other')),
+    ]
+
     session = models.ForeignKey(
         CashSession,
         on_delete=models.CASCADE,
-        related_name='movements'
+        related_name='movements',
+        verbose_name=_('Session'),
     )
-
-    movement_type = models.CharField(max_length=20, choices=MOVEMENT_TYPE_CHOICES)
+    movement_type = models.CharField(
+        _('Type'),
+        max_length=20,
+        choices=MOVEMENT_TYPES,
+    )
     amount = models.DecimalField(
-        max_digits=10,
+        _('Amount'),
+        max_digits=12,
         decimal_places=2,
-        help_text="Amount (positive for in/sale, negative for out)"
+        help_text=_('Positive for in/sale, negative for out/refund.'),
     )
-
-    # Reference to sale (if movement is from a sale)
+    payment_method = models.CharField(
+        _('Payment Method'),
+        max_length=20,
+        choices=PAYMENT_METHODS,
+        default='cash',
+    )
     sale_reference = models.CharField(
+        _('Sale Reference'),
         max_length=100,
         blank=True,
-        help_text="Sale number if movement is from a sale"
+        default='',
     )
-
-    description = models.TextField(
+    description = models.TextField(_('Description'), blank=True, default='')
+    employee = models.ForeignKey(
+        'accounts.LocalUser',
+        on_delete=models.SET_NULL,
+        null=True,
         blank=True,
-        help_text="Description of the movement"
+        related_name='cash_movements',
+        verbose_name=_('Employee'),
     )
 
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
+    class Meta(HubBaseModel.Meta):
         db_table = 'cash_register_movement'
+        verbose_name = _('Cash Movement')
+        verbose_name_plural = _('Cash Movements')
         ordering = ['-created_at']
         indexes = [
             models.Index(fields=['session', 'movement_type']),
@@ -310,92 +354,76 @@ class CashMovement(models.Model):
         return f"{self.get_movement_type_display()} - {self.amount}"
 
     @classmethod
-    def record_sale(cls, sale, session=None):
-        """
-        Record a sale as a cash movement.
-        If session is None, uses the currently open session.
-        """
+    def record_sale(cls, hub_id, sale, session=None, employee=None):
+        """Record a cash sale as a movement."""
         if session is None:
-            session = CashSession.get_current_session()
-
-        if not session:
-            # No open session, can't record
             return None
-
-        # Only record if payment was cash
-        if sale.payment_method != 'cash':
-            return None
-
-        movement = cls.objects.create(
+        return cls.objects.create(
+            hub_id=hub_id,
             session=session,
             movement_type='sale',
             amount=sale.total,
-            sale_reference=sale.sale_number,
-            description=f"Sale {sale.sale_number}"
+            sale_reference=getattr(sale, 'sale_number', ''),
+            description=f"Sale {getattr(sale, 'sale_number', '')}",
+            employee=employee,
         )
 
-        return movement
 
+# ---------------------------------------------------------------------------
+# Cash Count (denomination breakdown)
+# ---------------------------------------------------------------------------
 
-class CashCount(models.Model):
-    """
-    Conteo de dinero (desglose por denominaciones).
-    Se usa al abrir y cerrar sesión (opcional).
-    """
-    COUNT_TYPE_CHOICES = [
-        ('opening', 'Opening Count'),
-        ('closing', 'Closing Count'),
+class CashCount(HubBaseModel):
+    """Cash denomination count at open/close."""
+
+    COUNT_TYPES = [
+        ('opening', _('Opening Count')),
+        ('closing', _('Closing Count')),
     ]
 
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     session = models.ForeignKey(
         CashSession,
         on_delete=models.CASCADE,
-        related_name='counts'
+        related_name='counts',
+        verbose_name=_('Session'),
     )
-    count_type = models.CharField(max_length=20, choices=COUNT_TYPE_CHOICES)
-
-    # Count details (stored as JSON)
-    # Example: {"bills": {"50": 2, "20": 5}, "coins": {"2": 10, "1": 20}}
+    count_type = models.CharField(
+        _('Count Type'),
+        max_length=20,
+        choices=COUNT_TYPES,
+    )
     denominations = models.JSONField(
+        _('Denominations'),
         default=dict,
-        help_text="Cash count by denomination"
+        help_text=_('{"bills": {"50": 2, "20": 5}, "coins": {"2": 10, "1": 20}}'),
     )
-
     total = models.DecimalField(
-        max_digits=10,
+        _('Total'),
+        max_digits=12,
         decimal_places=2,
-        help_text="Total counted"
+        default=Decimal('0.00'),
     )
+    notes = models.TextField(_('Notes'), blank=True, default='')
+    counted_at = models.DateTimeField(_('Counted At'), auto_now_add=True)
 
-    notes = models.TextField(blank=True)
-    counted_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
+    class Meta(HubBaseModel.Meta):
         db_table = 'cash_register_count'
+        verbose_name = _('Cash Count')
+        verbose_name_plural = _('Cash Counts')
         ordering = ['-counted_at']
 
     def __str__(self):
         return f"{self.get_count_type_display()} - {self.total}"
 
     def calculate_total_from_denominations(self):
-        """Calculate total from denominations"""
         total = Decimal('0.00')
-
-        # Bills
-        if 'bills' in self.denominations:
-            for denomination, count in self.denominations['bills'].items():
-                total += Decimal(denomination) * Decimal(count)
-
-        # Coins
-        if 'coins' in self.denominations:
-            for denomination, count in self.denominations['coins'].items():
-                total += Decimal(denomination) * Decimal(count)
-
+        for section in ('bills', 'coins'):
+            if section in self.denominations:
+                for denom, count in self.denominations[section].items():
+                    total += Decimal(str(denom)) * Decimal(str(count))
         return total
 
     def save(self, *args, **kwargs):
-        # Auto-calculate total from denominations if not provided
-        if not self.total and self.denominations:
+        if (not self.total or self.total == Decimal('0.00')) and self.denominations:
             self.total = self.calculate_total_from_denominations()
         super().save(*args, **kwargs)

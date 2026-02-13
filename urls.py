@@ -16,6 +16,10 @@ urlpatterns = [
     path('history/', views.history, name='history'),
     path('settings/', views.settings_view, name='settings'),
 
+    # Register management
+    path('register/add/', views.add_register, name='add_register'),
+    path('register/<uuid:register_id>/toggle/', views.toggle_register, name='toggle_register'),
+
     # API Endpoints
     path('api/session/open/', views.api_open_session, name='api_open_session'),
     path('api/session/close/', views.api_close_session, name='api_close_session'),

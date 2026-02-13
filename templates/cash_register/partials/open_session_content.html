@@ -1,0 +1,175 @@
+{% load i18n djicons %}
+
+<script>
+function openSessionApp() {
+    return {
+        openingBalance: {{ suggested_balance|default:"0.00" }},
+        notes: '',
+        requireOpeningBalance: {{ config.require_opening_balance|yesno:"true,false" }},
+        showDenominationCounter: false,
+        coins: [
+            { value: 0.01, count: 0 }, { value: 0.02, count: 0 },
+            { value: 0.05, count: 0 }, { value: 0.10, count: 0 },
+            { value: 0.20, count: 0 }, { value: 0.50, count: 0 },
+            { value: 1.00, count: 0 }, { value: 2.00, count: 0 },
+        ],
+        bills: [
+            { value: 5, count: 0 }, { value: 10, count: 0 },
+            { value: 20, count: 0 }, { value: 50, count: 0 },
+            { value: 100, count: 0 }, { value: 200, count: 0 },
+            { value: 500, count: 0 },
+        ],
+        get calculatedTotal() {
+            let total = 0;
+            this.coins.forEach(coin => { total += coin.value * coin.count; });
+            this.bills.forEach(bill => { total += bill.value * bill.count; });
+            return Math.round(total * 100) / 100;
+        },
+        updateDenomination(type, value, count) {
+            const items = type === 'coin' ? this.coins : this.bills;
+            const item = items.find(i => i.value === value);
+            if (item) item.count = parseInt(count) || 0;
+        },
+        useCalculatedTotal() { this.openingBalance = this.calculatedTotal; },
+        getDenominationsData() {
+            const data = {};
+            this.coins.forEach(coin => { if (coin.count > 0) data[`coin_${coin.value}`] = coin.count; });
+            this.bills.forEach(bill => { if (bill.count > 0) data[`bill_${bill.value}`] = bill.count; });
+            return data;
+        },
+        formatCurrency(amount) {
+            const currency = '{{ HUB_CONFIG.currency }}';
+            const symbols = { 'EUR': '\u20ac', 'USD': '$', 'GBP': '\u00a3' };
+            return (symbols[currency] || currency) + ' ' + parseFloat(amount).toFixed(2);
+        },
+    }
+}
+</script>
+
+<div class="p-4" x-data="openSessionApp()">
+    <!-- Back Button -->
+    <button type="button"
+            hx-get="{% url 'cash_register:dashboard' %}"
+            hx-target="#main-content-area" hx-push-url="true"
+            class="btn btn-ghost mb-3">
+        {% icon "arrow-back-outline" %} {% trans "Back to Dashboard" %}
+    </button>
+
+    <div class="card mb-4">
+        <div class="card-header">
+            <h2 class="card-title">{% trans "Open Cash Session" %}</h2>
+            <p class="text-sm opacity-60">{{ request.user.first_name }} {{ request.user.last_name }}</p>
+        </div>
+
+        <div class="card-body">
+            <!-- Last Session Info -->
+            {% if last_session %}
+            <div class="card mb-4" style="background: var(--color-base-200);">
+                <div class="card-body">
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <p class="text-xs text-muted">{% trans "Last Session" %}</p>
+                            <p class="font-semibold">{{ last_session.session_number }}</p>
+                            <p class="text-xs text-muted">{% trans "Closed:" %} {{ last_session.closed_at|date:"d/m/Y H:i" }}</p>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-xs text-muted">{% trans "Closing Balance" %}</p>
+                            <p class="text-2xl font-bold text-primary">{{ suggested_balance }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <form method="POST">
+                {% csrf_token %}
+
+                <div class="form-group mb-3">
+                    <label class="form-group-label">
+                        {% trans "Opening Balance" %}
+                        {% if config.require_opening_balance %}<span class="text-error">*</span>{% endif %}
+                    </label>
+                    <input name="opening_balance" type="number" step="0.01"
+                           x-model="openingBalance"
+                           :required="requireOpeningBalance"
+                           placeholder="0.00" class="input">
+                </div>
+
+                <div class="form-group mb-3">
+                    <label class="form-group-label">{% trans "Notes (Optional)" %}</label>
+                    <textarea name="notes" x-model="notes" rows="3"
+                              placeholder="{% trans "Any additional notes..." %}"
+                              class="textarea"></textarea>
+                </div>
+
+                <!-- Denomination Counter Toggle -->
+                <div class="mb-4">
+                    <button type="button"
+                        @click="showDenominationCounter = !showDenominationCounter"
+                        class="btn btn-outline btn-block">
+                        {% icon "calculator-outline" %}
+                        <span x-text="showDenominationCounter ? '{% trans "Hide Calculator" %}' : '{% trans "Count Denominations" %}'"></span>
+                    </button>
+                </div>
+
+                <!-- Denomination Calculator -->
+                <div x-show="showDenominationCounter" class="mb-4" x-transition>
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">{% trans "Cash Count" %}</h3>
+                        </div>
+                        <div class="card-body">
+                            <p class="font-semibold mb-2">{% trans "Coins" %}</p>
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                <template x-for="coin in coins" :key="coin.value">
+                                    <div class="form-group">
+                                        <label class="form-group-label text-sm" x-text="formatCurrency(coin.value)"></label>
+                                        <input type="number" min="0" :value="coin.count"
+                                            @input="updateDenomination('coin', coin.value, $event.target.value)"
+                                            placeholder="0" class="input input--sm">
+                                    </div>
+                                </template>
+                            </div>
+
+                            <p class="font-semibold mb-2 mt-4">{% trans "Bills" %}</p>
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                <template x-for="bill in bills" :key="bill.value">
+                                    <div class="form-group">
+                                        <label class="form-group-label text-sm" x-text="formatCurrency(bill.value)"></label>
+                                        <input type="number" min="0" :value="bill.count"
+                                            @input="updateDenomination('bill', bill.value, $event.target.value)"
+                                            placeholder="0" class="input input--sm">
+                                    </div>
+                                </template>
+                            </div>
+
+                            <div class="flex justify-between items-center mt-4 p-3 rounded-lg bg-primary/10">
+                                <span class="font-semibold">{% trans "Calculated Total" %}</span>
+                                <span class="text-xl font-bold text-primary" x-text="formatCurrency(calculatedTotal)"></span>
+                            </div>
+
+                            <button type="button" @click="useCalculatedTotal()"
+                                class="btn btn-outline btn-block mt-2">
+                                {% trans "Use This Amount" %}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <input type="hidden" name="denominations_json" :value="JSON.stringify(getDenominationsData())">
+
+                <div class="flex gap-3">
+                    <button type="button"
+                        hx-get="{% url 'cash_register:dashboard' %}"
+                        hx-target="#main-content-area" hx-push-url="true"
+                        class="btn btn-outline flex-1">
+                        {% trans "Cancel" %}
+                    </button>
+                    <button type="submit" class="btn color-success flex-1">
+                        {% icon "lock-open-outline" %} {% trans "Open Session" %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>

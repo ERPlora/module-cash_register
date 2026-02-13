@@ -1,0 +1,273 @@
+{% load i18n djicons %}
+
+<script>
+function sessionDetailApp() {
+    return {
+        movementFilter: 'all',
+    }
+}
+</script>
+
+<div class="p-4" x-data="sessionDetailApp()">
+    <!-- Back + Header -->
+    <button type="button"
+            hx-get="{% url 'cash_register:dashboard' %}"
+            hx-target="#main-content-area" hx-push-url="true"
+            class="btn btn-ghost mb-3">
+        {% icon "arrow-back-outline" %} {% trans "Back to Dashboard" %}
+    </button>
+
+    <!-- Session Header Card -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h2 class="card-title">{{ session.session_number }}</h2>
+                    <p class="text-sm opacity-60">
+                        {{ session.opened_at|date:"d/m/Y H:i" }}
+                        {% if session.user %} &middot; {{ session.user }}{% endif %}
+                    </p>
+                </div>
+                <span class="badge badge-lg {% if session.status == 'open' %}color-success{% elif session.status == 'closed' %}{% else %}color-warning{% endif %}">
+                    {{ session.get_status_display }}
+                </span>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="grid grid-cols-3 gap-4">
+                <div class="text-center">
+                    <div class="text-2xl font-bold">{{ session.opening_balance|floatformat:2 }}</div>
+                    <div class="text-xs text-muted">{% trans "Opening" %}</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-2xl font-bold text-primary">{% if session.status == 'open' %}{{ session.get_current_balance|floatformat:2 }}{% else %}{{ session.expected_balance|floatformat:2 }}{% endif %}</div>
+                    <div class="text-xs text-muted">{% if session.status == 'open' %}{% trans "Current" %}{% else %}{% trans "Expected" %}{% endif %}</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-2xl font-bold">{{ session.get_duration }}</div>
+                    <div class="text-xs text-muted">{% trans "Duration" %}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Actions (open session only) -->
+    {% if session.status == 'open' %}
+    <div class="flex gap-2 mb-4">
+        <button class="btn btn-outline color-error flex-1"
+            hx-get="{% url 'cash_register:close_session' %}"
+            hx-target="#main-content-area" hx-push-url="true">
+            {% icon "lock-closed-outline" %} {% trans "Close Session" %}
+        </button>
+    </div>
+    {% endif %}
+
+    <!-- Financial Summary -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h3 class="card-title">{% trans "Financial Summary" %}</h3>
+        </div>
+        <div class="list">
+            <div class="list-item">
+                <div class="list-item-start">{% icon "cash-outline" css_class="text-muted" %}</div>
+                <div class="list-item-content">
+                    <div class="list-item-label">{% trans "Opening Balance" %}</div>
+                </div>
+                <div class="list-item-end font-semibold">{{ session.opening_balance|floatformat:2 }}</div>
+            </div>
+            <div class="list-item">
+                <div class="list-item-start">{% icon "cart-outline" css_class="text-success" %}</div>
+                <div class="list-item-content">
+                    <div class="list-item-label">{% trans "Total Sales" %}</div>
+                    <div class="list-item-note">{{ sales_movements.count }} {% trans "transactions" %}</div>
+                </div>
+                <div class="list-item-end font-semibold text-success">+{{ session.get_total_sales|floatformat:2 }}</div>
+            </div>
+            <div class="list-item">
+                <div class="list-item-start">{% icon "arrow-down-circle-outline" css_class="text-success" %}</div>
+                <div class="list-item-content">
+                    <div class="list-item-label">{% trans "Cash In" %}</div>
+                    <div class="list-item-note">{{ in_movements.count }} {% trans "movements" %}</div>
+                </div>
+                <div class="list-item-end font-semibold text-success">+{{ session.get_total_in|floatformat:2 }}</div>
+            </div>
+            <div class="list-item">
+                <div class="list-item-start">{% icon "arrow-up-circle-outline" css_class="text-error" %}</div>
+                <div class="list-item-content">
+                    <div class="list-item-label">{% trans "Cash Out" %}</div>
+                    <div class="list-item-note">{{ out_movements.count }} {% trans "movements" %}</div>
+                </div>
+                <div class="list-item-end font-semibold text-error">-{{ session.get_total_out|floatformat:2 }}</div>
+            </div>
+            {% if refund_movements.count > 0 %}
+            <div class="list-item">
+                <div class="list-item-start">{% icon "return-down-back-outline" css_class="text-warning" %}</div>
+                <div class="list-item-content">
+                    <div class="list-item-label">{% trans "Refunds" %}</div>
+                    <div class="list-item-note">{{ refund_movements.count }} {% trans "refunds" %}</div>
+                </div>
+                <div class="list-item-end font-semibold text-warning">-{{ session.get_total_refunds|floatformat:2 }}</div>
+            </div>
+            {% endif %}
+            <div class="list-item" style="border-top: 2px solid var(--color-base-300)">
+                <div class="list-item-start">{% icon "wallet-outline" css_class="text-primary" %}</div>
+                <div class="list-item-content">
+                    <div class="list-item-label font-bold">{% if session.status == 'open' %}{% trans "Current Balance" %}{% else %}{% trans "Expected Balance" %}{% endif %}</div>
+                </div>
+                <div class="list-item-end font-bold text-lg text-primary">{% if session.status == 'open' %}{{ session.get_current_balance|floatformat:2 }}{% else %}{{ session.expected_balance|floatformat:2 }}{% endif %}</div>
+            </div>
+            {% if session.status == 'closed' %}
+            <div class="list-item">
+                <div class="list-item-start">{% icon "checkmark-done-outline" css_class="text-muted" %}</div>
+                <div class="list-item-content">
+                    <div class="list-item-label">{% trans "Actual Closing Balance" %}</div>
+                </div>
+                <div class="list-item-end font-semibold">{{ session.closing_balance|floatformat:2 }}</div>
+            </div>
+            <div class="list-item">
+                <div class="list-item-start">
+                    {% if session.difference == 0 %}{% icon "checkmark-circle-outline" css_class="text-success" %}
+                    {% elif session.difference > 0 %}{% icon "alert-circle-outline" css_class="text-warning" %}
+                    {% else %}{% icon "warning-outline" css_class="text-error" %}{% endif %}
+                </div>
+                <div class="list-item-content">
+                    <div class="list-item-label font-bold">{% trans "Difference" %}</div>
+                    <div class="list-item-note">
+                        {% if session.difference == 0 %}{% trans "Exact match" %}
+                        {% elif session.difference > 0 %}{% trans "Surplus" %}
+                        {% else %}{% trans "Shortage" %}{% endif %}
+                    </div>
+                </div>
+                <div class="list-item-end font-bold text-lg {% if session.difference == 0 %}text-success{% elif session.difference > 0 %}text-warning{% else %}text-error{% endif %}">
+                    {% if session.difference > 0 %}+{% endif %}{{ session.difference|floatformat:2 }}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Notes -->
+    {% if session.opening_notes or session.closing_notes %}
+    <div class="card mb-4">
+        <div class="card-header">
+            <h3 class="card-title">{% trans "Notes" %}</h3>
+        </div>
+        <div class="list">
+            {% if session.opening_notes %}
+            <div class="list-item">
+                <div class="list-item-start">{% icon "document-text-outline" css_class="text-primary" %}</div>
+                <div class="list-item-content">
+                    <div class="list-item-label">{{ session.opening_notes }}</div>
+                    <div class="list-item-note">{% trans "Opening Notes" %}</div>
+                </div>
+            </div>
+            {% endif %}
+            {% if session.closing_notes %}
+            <div class="list-item">
+                <div class="list-item-start">{% icon "document-text-outline" css_class="text-warning" %}</div>
+                <div class="list-item-content">
+                    <div class="list-item-label">{{ session.closing_notes }}</div>
+                    <div class="list-item-note">{% trans "Closing Notes" %}</div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Cash Movements -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <div class="flex justify-between items-center">
+                <h3 class="card-title">{% trans "Cash Movements" %}</h3>
+                <span class="badge">{{ movements.count }}</span>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <!-- Tabs -->
+            <div class="tabs p-3 pb-0">
+                <div class="tabs__nav">
+                    <button class="tabs__item" :class="{ 'is-active': movementFilter === 'all' }" @click="movementFilter = 'all'">{% trans "All" %} ({{ movements.count }})</button>
+                    <button class="tabs__item" :class="{ 'is-active': movementFilter === 'sale' }" @click="movementFilter = 'sale'">{% trans "Sales" %} ({{ sales_movements.count }})</button>
+                    <button class="tabs__item" :class="{ 'is-active': movementFilter === 'in' }" @click="movementFilter = 'in'">{% trans "In" %} ({{ in_movements.count }})</button>
+                    <button class="tabs__item" :class="{ 'is-active': movementFilter === 'out' }" @click="movementFilter = 'out'">{% trans "Out" %} ({{ out_movements.count }})</button>
+                </div>
+            </div>
+
+            {% if movements %}
+            <div class="list">
+                {% for movement in movements %}
+                <div class="list-item" x-show="movementFilter === 'all' || movementFilter === '{{ movement.movement_type }}'">
+                    <div class="list-item-start">
+                        {% if movement.movement_type == 'sale' %}{% icon "cart-outline" css_class="text-success" %}
+                        {% elif movement.movement_type == 'in' %}{% icon "arrow-down-circle-outline" css_class="text-success" %}
+                        {% elif movement.movement_type == 'refund' %}{% icon "return-down-back-outline" css_class="text-warning" %}
+                        {% else %}{% icon "arrow-up-circle-outline" css_class="text-error" %}{% endif %}
+                    </div>
+                    <div class="list-item-content">
+                        <div class="list-item-label">{{ movement.get_movement_type_display }}</div>
+                        <div class="list-item-note">
+                            {% if movement.description %}{{ movement.description }}{% endif %}
+                            {% if movement.sale_reference %} &middot; {{ movement.sale_reference }}{% endif %}
+                            &middot; {{ movement.created_at|date:"d/m/Y H:i" }}
+                        </div>
+                    </div>
+                    <div class="list-item-end font-semibold {% if movement.amount >= 0 %}text-success{% else %}text-error{% endif %}">
+                        {% if movement.amount >= 0 %}+{% endif %}{{ movement.amount|floatformat:2 }}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="text-center py-8">
+                <div class="w-12 h-12 rounded-full bg-gray-500/10 flex items-center justify-center mx-auto mb-3">
+                    {% icon "folder-open-outline" css_class="text-xl text-muted" %}
+                </div>
+                <p class="text-muted">{% trans "No movements in this session" %}</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Cash Counts -->
+    {% if counts %}
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">{% trans "Cash Counts" %}</h3>
+        </div>
+        <div class="list">
+            {% for count in counts %}
+            <div class="list-item">
+                <div class="list-item-start">
+                    {% if count.count_type == 'opening' %}{% icon "log-in-outline" css_class="text-primary" %}
+                    {% else %}{% icon "log-out-outline" css_class="text-warning" %}{% endif %}
+                </div>
+                <div class="list-item-content">
+                    <div class="list-item-label">
+                        {% if count.count_type == 'opening' %}{% trans "Opening Count" %}{% else %}{% trans "Closing Count" %}{% endif %}
+                    </div>
+                    <div class="list-item-note">
+                        {{ count.counted_at|date:"d/m/Y H:i" }}
+                        {% if count.notes %} &middot; {{ count.notes }}{% endif %}
+                    </div>
+                    {% if count.denominations %}
+                    <details class="mt-2">
+                        <summary class="cursor-pointer text-sm text-primary">{% trans "View denominations" %}</summary>
+                        <div class="mt-2 text-sm">
+                            {% for key, value in count.denominations.items %}
+                            <div class="flex justify-between py-1">
+                                <span class="text-muted">{{ key }}</span>
+                                <span class="font-medium">{{ value }}</span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </details>
+                    {% endif %}
+                </div>
+                <div class="list-item-end font-bold">{{ count.total|floatformat:2 }}</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+</div>

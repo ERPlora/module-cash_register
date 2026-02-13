@@ -1,14 +1,14 @@
 from django.contrib import admin
 from .models import (
-    CashRegisterConfig,
+    CashRegisterSettings,
     CashSession,
     CashMovement,
     CashCount
 )
 
 
-@admin.register(CashRegisterConfig)
-class CashRegisterConfigAdmin(admin.ModelAdmin):
+@admin.register(CashRegisterSettings)
+class CashRegisterSettingsAdmin(admin.ModelAdmin):
     list_display = [
         'enable_cash_register',
         'require_opening_balance',
@@ -32,7 +32,7 @@ class CashRegisterConfigAdmin(admin.ModelAdmin):
 
     def has_add_permission(self, request):
         # Singleton: only allow one instance
-        return not CashRegisterConfig.objects.exists()
+        return not CashRegisterSettings.objects.exists()
 
     def has_delete_permission(self, request, obj=None):
         # Prevent deletion of singleton

@@ -1,137 +1,116 @@
-{% load i18n %}
-
-{% if request.htmx %}
-<!-- Tab bar update via OOB swap (only on HTMX navigation) -->
-<div id="dashboard-tabbar" hx-swap-oob="innerHTML">
-<ion-footer>
-{% include "cash_register/partials/tabbar_cash_register.html" with current_view='settings' %}
-</ion-footer>
-</div>
-{% endif %}
+{% load i18n djicons %}
 
 <div class="p-4">
-    <div class="mb-6">
-        <h1 class="text-3xl font-bold" style="color: var(--ion-text-color);">{% trans "Configuración de Caja" %}</h1>
-        <p class="text-sm mt-2" style="color: var(--ion-color-medium);">{% trans "Ajustes del módulo de caja registradora" %}</p>
+    <!-- Session Status -->
+    <div class="card mb-4">
+        <div class="card-body flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl flex items-center justify-center {% if open_session %}bg-success/10{% else %}bg-gray-500/10{% endif %}">
+                {% if open_session %}
+                {% icon "lock-open-outline" css_class="text-xl text-success" %}
+                {% else %}
+                {% icon "lock-closed-outline" css_class="text-xl text-muted" %}
+                {% endif %}
+            </div>
+            <div>
+                <div class="text-lg font-bold">{% if open_session %}{% trans "Session Open" %}{% else %}{% trans "Session Closed" %}{% endif %}</div>
+                <div class="text-xs text-muted">{% trans "Current cash session status" %}</div>
+            </div>
+        </div>
     </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <!-- Global Config (Read-only) -->
-        <ion-card class="m-0">
-            <ion-card-header>
-                <ion-card-title>{% trans "Configuración del Hub" %}</ion-card-title>
-                <ion-card-subtitle>{% trans "Solo lectura - se gestiona desde ajustes generales" %}</ion-card-subtitle>
-            </ion-card-header>
-            <ion-card-content>
-                <ion-list>
-                    <ion-item>
-                        <ion-icon name="cash-outline" slot="start" style="color: var(--ion-color-primary);"></ion-icon>
-                        <ion-label>
-                            <h3>{% trans "Moneda" %}</h3>
-                            <p>{{ HUB_CONFIG.currency }}</p>
-                        </ion-label>
-                    </ion-item>
-                    <ion-item>
-                        <ion-icon name="business-outline" slot="start" style="color: var(--ion-color-primary);"></ion-icon>
-                        <ion-label>
-                            <h3>{% trans "Nombre del Negocio" %}</h3>
-                            <p>{{ STORE_CONFIG.business_name|default:"No configurado" }}</p>
-                        </ion-label>
-                    </ion-item>
-                </ion-list>
-            </ion-card-content>
-        </ion-card>
-
-        <!-- Plugin Config (Editable) -->
-        <ion-card class="m-0">
-            <ion-card-header>
-                <ion-card-title>{% trans "Configuración del Módulo" %}</ion-card-title>
-            </ion-card-header>
-            <ion-card-content>
-                <form id="settings-form"
-                      hx-post="{% url 'cash_register:settings' %}"
-                      hx-target="#save-status"
-                      hx-swap="innerHTML"
-                      hx-trigger="change delay:500ms">
-                    {% csrf_token %}
-
-                    <ion-list>
-                        <ion-item>
-                            <ion-label>
-                                <h3>{% trans "Activar Caja" %}</h3>
-                                <p>{% trans "Activar/desactivar funcionalidad de caja" %}</p>
-                            </ion-label>
-                            <ion-toggle
-                                slot="end"
-                                name="enable_cash_register"
-                                {% if config.enable_cash_register %}checked{% endif %}>
-                            </ion-toggle>
-                        </ion-item>
-
-                        <ion-item>
-                            <ion-label>
-                                <h3>{% trans "Requerir Saldo Inicial" %}</h3>
-                                <p>{% trans "Requerir conteo al abrir sesión" %}</p>
-                            </ion-label>
-                            <ion-toggle
-                                slot="end"
-                                name="require_opening_balance"
-                                {% if config.require_opening_balance %}checked{% endif %}>
-                            </ion-toggle>
-                        </ion-item>
-
-                        <ion-item>
-                            <ion-label>
-                                <h3>{% trans "Requerir Saldo Final" %}</h3>
-                                <p>{% trans "Requerir conteo al cerrar sesión" %}</p>
-                            </ion-label>
-                            <ion-toggle
-                                slot="end"
-                                name="require_closing_balance"
-                                {% if config.require_closing_balance %}checked{% endif %}>
-                            </ion-toggle>
-                        </ion-item>
-
-                        <ion-item>
-                            <ion-label>
-                                <h3>{% trans "Permitir Saldo Negativo" %}</h3>
-                                <p>{% trans "Permitir balance negativo en caja" %}</p>
-                            </ion-label>
-                            <ion-toggle
-                                slot="end"
-                                name="allow_negative_movements"
-                                {% if config.allow_negative_movements %}checked{% endif %}>
-                            </ion-toggle>
-                        </ion-item>
-                    </ion-list>
-
-                    <!-- Protected URL -->
-                    <div class="mt-4 p-4 rounded-lg" style="background: var(--ion-color-light);">
-                        <ion-label>
-                            <h3 class="font-medium" style="color: var(--ion-text-color);">{% trans "URL Protegida del POS" %}</h3>
-                            <p class="text-xs mt-1" style="color: var(--ion-color-medium);">{% trans "URL que requiere sesión de caja abierta" %}</p>
-                        </ion-label>
-
-                        <div class="flex gap-2 items-center mt-3">
-                            <ion-input
-                                type="text"
-                                name="protected_pos_url"
-                                value="{{ config.protected_pos_url|default:'/modules/sales/pos/' }}"
-                                placeholder="/modules/sales/pos/"
-                                fill="outline"
-                                style="flex: 1;">
-                            </ion-input>
-
-                            <ion-button type="submit" fill="clear" color="primary">
-                                <ion-icon slot="icon-only" name="save-outline"></ion-icon>
-                            </ion-button>
-                        </div>
+    <!-- Module Settings -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">{% icon "settings-outline" css_class="text-primary" %} {% trans "Settings" %}</h3>
+        </div>
+        <form id="settings-form"
+              hx-post="{% url 'cash_register:settings' %}"
+              hx-target="#save-status"
+              hx-swap="innerHTML"
+              hx-trigger="change delay:500ms">
+            {% csrf_token %}
+            <div class="list">
+                <div class="list-item">
+                    <div class="list-item-content">
+                        <div class="list-item-label">{% trans "Enable Cash Register" %}</div>
+                        <div class="list-item-note">{% trans "Require an open cash session to use the POS" %}</div>
                     </div>
+                    <div class="list-item-end">
+                        <label class="toggle color-success">
+                            <input type="checkbox" name="enable_cash_register"
+                                   {% if config.enable_cash_register %}checked{% endif %}>
+                            <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                        </label>
+                    </div>
+                </div>
+                <div class="list-item">
+                    <div class="list-item-content">
+                        <div class="list-item-label">{% trans "Require Opening Balance" %}</div>
+                        <div class="list-item-note">{% trans "Require manual cash count when opening a session" %}</div>
+                    </div>
+                    <div class="list-item-end">
+                        <label class="toggle color-success">
+                            <input type="checkbox" name="require_opening_balance"
+                                   {% if config.require_opening_balance %}checked{% endif %}>
+                            <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                        </label>
+                    </div>
+                </div>
+                <div class="list-item">
+                    <div class="list-item-content">
+                        <div class="list-item-label">{% trans "Require Closing Balance" %}</div>
+                        <div class="list-item-note">{% trans "Require manual cash count when closing a session" %}</div>
+                    </div>
+                    <div class="list-item-end">
+                        <label class="toggle color-success">
+                            <input type="checkbox" name="require_closing_balance"
+                                   {% if config.require_closing_balance %}checked{% endif %}>
+                            <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                        </label>
+                    </div>
+                </div>
+                <div class="list-item">
+                    <div class="list-item-content">
+                        <div class="list-item-label">{% trans "Allow Negative Balance" %}</div>
+                        <div class="list-item-note">{% trans "Allow negative cash balance in register" %}</div>
+                    </div>
+                    <div class="list-item-end">
+                        <label class="toggle color-success">
+                            <input type="checkbox" name="allow_negative_balance"
+                                   {% if config.allow_negative_balance %}checked{% endif %}>
+                            <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                        </label>
+                    </div>
+                </div>
+                <div class="list-item">
+                    <div class="list-item-content">
+                        <div class="list-item-label">{% trans "Auto Open on Login" %}</div>
+                        <div class="list-item-note">{% trans "Automatically open a cash session when user logs in" %}</div>
+                    </div>
+                    <div class="list-item-end">
+                        <label class="toggle color-success">
+                            <input type="checkbox" name="auto_open_session_on_login"
+                                   {% if config.auto_open_session_on_login %}checked{% endif %}>
+                            <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                        </label>
+                    </div>
+                </div>
+                <div class="list-item">
+                    <div class="list-item-content">
+                        <div class="list-item-label">{% trans "Auto Close on Logout" %}</div>
+                        <div class="list-item-note">{% trans "Automatically close session when user logs out" %}</div>
+                    </div>
+                    <div class="list-item-end">
+                        <label class="toggle color-success">
+                            <input type="checkbox" name="auto_close_session_on_logout"
+                                   {% if config.auto_close_session_on_logout %}checked{% endif %}>
+                            <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                        </label>
+                    </div>
+                </div>
+            </div>
 
-                    <!-- Save Status -->
-                    <div id="save-status" class="text-center mt-4"></div>
-                </form>
-            </ion-card-content>
-        </ion-card>
+            <div id="save-status" class="text-center p-2"></div>
+        </form>
     </div>
 </div>
