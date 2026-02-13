@@ -1,3 +1,5 @@
+from urllib.parse import urlencode
+
 from django.shortcuts import redirect
 from django.utils.deprecation import MiddlewareMixin
 
@@ -7,14 +9,12 @@ class CashRegisterMiddleware(MiddlewareMixin):
     Middleware that requires users to open a cash session before accessing the POS.
 
     Flow:
-    1. User logs in → Can access dashboard, history, etc.
+    1. User logs in → auto-opens session if enabled
     2. User tries to access the protected POS URL
     3. Middleware detects no open cash session
-    4. User is redirected to /m/cash_register/open/
+    4. User is redirected to /m/cash_register/open/?next=/m/sales/pos/
     5. User opens a cash session with opening balance
-    6. User can use the POS normally
-    7. On logout → User is redirected to /m/cash_register/close/
-    8. User closes session with final count
+    6. User is redirected back to POS
     """
 
     EXEMPT_URLS = [
@@ -62,7 +62,17 @@ class CashRegisterMiddleware(MiddlewareMixin):
             open_session = CashSession.get_current_session(hub_id, user)
 
             if not open_session:
-                return redirect('cash_register:open_session')
+                # Auto-open if configured
+                if config.auto_open_session_on_login:
+                    open_session = CashSession.open_for_user(
+                        hub_id=hub_id, user=user,
+                    )
+                    request.cash_session = open_session
+                    return None
+
+                # Manual open: redirect with next param so user returns to POS
+                open_url = '/m/cash_register/open/?' + urlencode({'next': path})
+                return redirect(open_url)
 
             request.cash_session = open_session
 
