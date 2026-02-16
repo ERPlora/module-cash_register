@@ -2,6 +2,7 @@ from django.utils.translation import gettext_lazy as _
 
 MODULE_ID = 'cash_register'
 MODULE_NAME = _('Cash Register')
+MODULE_VERSION = '1.0.0'
 
 MENU = {
     'label': _('Cash Register'),
