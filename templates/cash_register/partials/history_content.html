@@ -6,18 +6,18 @@
         <div class="card-body">
             <div class="flex flex-wrap gap-3 items-center">
                 <div class="tabs" style="max-width: 320px;">
-                    <div class="tabs__nav">
-                        <button class="tabs__item {% if not status_filter %}is-active{% endif %}"
+                    <div class="tabs-nav">
+                        <button class="tabs-item {% if not status_filter %}is-active{% endif %}"
                             hx-get="{% url 'cash_register:history' %}"
                             hx-target="#main-content-area" hx-push-url="true">
                             {% trans "All" %}
                         </button>
-                        <button class="tabs__item {% if status_filter == 'open' %}is-active{% endif %}"
+                        <button class="tabs-item {% if status_filter == 'open' %}is-active{% endif %}"
                             hx-get="{% url 'cash_register:history' %}?status=open"
                             hx-target="#main-content-area" hx-push-url="true">
                             {% trans "Open" %}
                         </button>
-                        <button class="tabs__item {% if status_filter == 'closed' %}is-active{% endif %}"
+                        <button class="tabs-item {% if status_filter == 'closed' %}is-active{% endif %}"
                             hx-get="{% url 'cash_register:history' %}?status=closed"
                             hx-target="#main-content-area" hx-push-url="true">
                             {% trans "Closed" %}

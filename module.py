@@ -15,3 +15,15 @@ NAVIGATION = [
     {'id': 'history', 'label': _('History'), 'icon': 'time-outline', 'view': 'history'},
     {'id': 'settings', 'label': _('Settings'), 'icon': 'settings-outline', 'view': 'settings'},
 ]
+
+PERMISSIONS = [
+    'cash_register.view_session',
+    'cash_register.add_session',
+    'cash_register.close_session',
+    'cash_register.view_movement',
+    'cash_register.add_movement',
+    'cash_register.view_count',
+    'cash_register.add_count',
+    'cash_register.view_reports',
+    'cash_register.manage_settings',
+]

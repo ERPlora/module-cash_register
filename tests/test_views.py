@@ -2,367 +2,271 @@
 Integration tests for Cash Register views.
 """
 
-import pytest
 import json
+import uuid
+import pytest
 from decimal import Decimal
 from django.test import Client
+from django.utils import timezone
 
 from cash_register.models import (
-    CashRegisterConfig, CashSession, CashMovement, CashCount
+    CashRegisterSettings, CashRegister, CashSession,
+    CashMovement, CashCount,
 )
-from apps.accounts.models import LocalUser
+
+
+pytestmark = [pytest.mark.django_db, pytest.mark.unit]
+
+
+# ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
+
+@pytest.fixture(autouse=True)
+def _set_hub_config(db, settings):
+    """Ensure HubConfig + StoreConfig exist so middleware won't redirect."""
+    from apps.configuration.models import HubConfig, StoreConfig
+    config = HubConfig.get_solo()
+    config.save()
+    store = StoreConfig.get_solo()
+    store.business_name = 'Test Business'
+    store.is_configured = True
+    store.save()
 
 
 @pytest.fixture
-def client():
-    """Create test client."""
-    return Client()
+def hub_id(db):
+    from apps.configuration.models import HubConfig
+    return HubConfig.get_solo().hub_id
 
 
 @pytest.fixture
-def user():
-    """Create a test user."""
+def employee(db):
+    """Create a local user (employee)."""
+    from apps.accounts.models import LocalUser
     return LocalUser.objects.create(
-        name="Test User",
-        pin="1234",
-        is_active=True
+        name='Test Employee',
+        email='employee@test.com',
+        role='admin',
+        is_active=True,
     )
 
 
 @pytest.fixture
-def open_session(user):
-    """Create an open cash session."""
+def auth_client(employee):
+    """Authenticated Django test client."""
+    client = Client()
+    session = client.session
+    session['local_user_id'] = str(employee.id)
+    session['user_name'] = employee.name
+    session['user_email'] = employee.email
+    session['user_role'] = employee.role
+    session['store_config_checked'] = True
+    session.save()
+    return client
+
+
+@pytest.fixture
+def register(hub_id):
+    """Create a cash register."""
+    return CashRegister.objects.create(
+        hub_id=hub_id,
+        name='Register 1',
+        is_active=True,
+    )
+
+
+@pytest.fixture
+def open_session(hub_id, employee):
+    """Create an open cash session for the employee."""
     return CashSession.objects.create(
-        user=user,
+        hub_id=hub_id,
+        user=employee,
         opening_balance=Decimal('100.00'),
-        status='open'
+        status='open',
     )
 
 
 @pytest.fixture
-def closed_session(user):
+def closed_session(hub_id, employee):
     """Create a closed cash session."""
-    from django.utils import timezone
     return CashSession.objects.create(
-        user=user,
+        hub_id=hub_id,
+        user=employee,
         opening_balance=Decimal('100.00'),
         closing_balance=Decimal('150.00'),
         status='closed',
-        closed_at=timezone.now()
+        closed_at=timezone.now(),
     )
 
 
-@pytest.mark.django_db
-class TestApiOpenSession:
-    """Tests for API open session endpoint."""
+# ---------------------------------------------------------------------------
+# Dashboard
+# ---------------------------------------------------------------------------
 
-    def test_open_session_success(self, client, user):
-        """Test opening a session via API."""
-        # Simulate logged in user (would need proper auth in real tests)
-        client.force_login(user)
+class TestDashboard:
 
-        response = client.post(
-            '/m/cash_register/api/open/',
+    def test_requires_login(self):
+        client = Client()
+        response = client.get('/m/cash_register/')
+        assert response.status_code == 302
+
+    def test_dashboard_loads(self, auth_client):
+        response = auth_client.get('/m/cash_register/')
+        assert response.status_code == 200
+
+    def test_dashboard_htmx(self, auth_client):
+        response = auth_client.get('/m/cash_register/', HTTP_HX_REQUEST='true')
+        assert response.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# History
+# ---------------------------------------------------------------------------
+
+class TestHistory:
+
+    def test_history_loads(self, auth_client, closed_session):
+        response = auth_client.get('/m/cash_register/history/')
+        assert response.status_code == 200
+
+    def test_history_htmx(self, auth_client, closed_session):
+        response = auth_client.get('/m/cash_register/history/', HTTP_HX_REQUEST='true')
+        assert response.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# Session Detail
+# ---------------------------------------------------------------------------
+
+class TestSessionDetail:
+
+    def test_session_detail_loads(self, auth_client, closed_session):
+        response = auth_client.get(f'/m/cash_register/session/{closed_session.pk}/')
+        assert response.status_code == 200
+
+    def test_session_detail_not_found(self, auth_client):
+        fake_uuid = uuid.uuid4()
+        response = auth_client.get(f'/m/cash_register/session/{fake_uuid}/')
+        assert response.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Settings
+# ---------------------------------------------------------------------------
+
+class TestSettingsView:
+
+    def test_settings_loads(self, auth_client):
+        response = auth_client.get('/m/cash_register/settings/')
+        assert response.status_code == 200
+
+    def test_settings_htmx(self, auth_client):
+        response = auth_client.get('/m/cash_register/settings/', HTTP_HX_REQUEST='true')
+        assert response.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# API: Open Session
+# ---------------------------------------------------------------------------
+
+class TestAPIOpenSession:
+
+    def test_open_session(self, auth_client):
+        response = auth_client.post(
+            '/m/cash_register/api/session/open/',
             data=json.dumps({
                 'opening_balance': 100.00,
-                'notes': 'Start of day'
+                'notes': 'Start of day',
             }),
-            content_type='application/json'
+            content_type='application/json',
         )
-
-        # Response depends on auth - in real tests would be 200
-        assert response.status_code in [200, 302]
-
-    def test_open_session_already_exists(self, client, user, open_session):
-        """Test opening session when one already exists."""
-        client.force_login(user)
-
-        response = client.post(
-            '/m/cash_register/api/open/',
-            data=json.dumps({
-                'opening_balance': 200.00
-            }),
-            content_type='application/json'
-        )
-
-        # Should fail with existing session
-        assert response.status_code in [302, 400]
+        assert response.status_code == 200
+        data = response.json()
+        assert data['success'] is True
 
 
-@pytest.mark.django_db
-class TestApiCloseSession:
-    """Tests for API close session endpoint."""
+# ---------------------------------------------------------------------------
+# API: Close Session
+# ---------------------------------------------------------------------------
 
-    def test_close_session_success(self, client, user, open_session):
-        """Test closing a session via API."""
-        client.force_login(user)
+class TestAPICloseSession:
 
-        response = client.post(
-            '/m/cash_register/api/close/',
+    def test_close_session(self, auth_client, open_session):
+        response = auth_client.post(
+            '/m/cash_register/api/session/close/',
             data=json.dumps({
                 'closing_balance': 150.00,
-                'notes': 'End of day'
+                'notes': 'End of day',
             }),
-            content_type='application/json'
+            content_type='application/json',
         )
-
-        assert response.status_code in [200, 302]
-
-    def test_close_session_no_open_session(self, client, user):
-        """Test closing when no open session exists."""
-        client.force_login(user)
-
-        response = client.post(
-            '/m/cash_register/api/close/',
-            data=json.dumps({
-                'closing_balance': 100.00
-            }),
-            content_type='application/json'
-        )
-
-        # Should return 404 or redirect
-        assert response.status_code in [302, 404]
+        assert response.status_code == 200
+        data = response.json()
+        assert data['success'] is True
 
 
-@pytest.mark.django_db
-class TestApiAddMovement:
-    """Tests for API add movement endpoint."""
+# ---------------------------------------------------------------------------
+# API: Current Session
+# ---------------------------------------------------------------------------
 
-    def test_add_sale_movement(self, client, user, open_session):
-        """Test adding a sale movement."""
-        client.force_login(user)
+class TestAPICurrentSession:
 
-        response = client.post(
-            '/m/cash_register/api/movement/',
+    def test_get_current_session(self, auth_client, open_session):
+        response = auth_client.get('/m/cash_register/api/session/current/')
+        assert response.status_code == 200
+
+    def test_no_current_session(self, auth_client):
+        response = auth_client.get('/m/cash_register/api/session/current/')
+        # Should still return 200 with appropriate response
+        assert response.status_code in [200, 404]
+
+
+# ---------------------------------------------------------------------------
+# API: Add Movement
+# ---------------------------------------------------------------------------
+
+class TestAPIAddMovement:
+
+    def test_add_sale_movement(self, auth_client, open_session):
+        response = auth_client.post(
+            '/m/cash_register/api/movement/add/',
             data=json.dumps({
                 'movement_type': 'sale',
                 'amount': 50.00,
                 'sale_reference': 'SALE-001',
-                'description': 'Test sale'
+                'description': 'Test sale',
             }),
-            content_type='application/json'
+            content_type='application/json',
         )
+        assert response.status_code == 200
+        data = response.json()
+        assert data['success'] is True
 
-        assert response.status_code in [200, 302]
-
-    def test_add_cash_in_movement(self, client, user, open_session):
-        """Test adding a cash in movement."""
-        client.force_login(user)
-
-        response = client.post(
-            '/m/cash_register/api/movement/',
+    def test_add_cash_in(self, auth_client, open_session):
+        response = auth_client.post(
+            '/m/cash_register/api/movement/add/',
             data=json.dumps({
                 'movement_type': 'in',
                 'amount': 100.00,
-                'description': 'Extra change'
+                'description': 'Extra change',
             }),
-            content_type='application/json'
+            content_type='application/json',
         )
+        assert response.status_code == 200
+        data = response.json()
+        assert data['success'] is True
 
-        assert response.status_code in [200, 302]
-
-    def test_add_cash_out_movement(self, client, user, open_session):
-        """Test adding a cash out movement."""
-        client.force_login(user)
-
-        response = client.post(
-            '/m/cash_register/api/movement/',
+    def test_add_cash_out(self, auth_client, open_session):
+        response = auth_client.post(
+            '/m/cash_register/api/movement/add/',
             data=json.dumps({
                 'movement_type': 'out',
                 'amount': 30.00,
-                'description': 'Supplier payment'
+                'description': 'Supplier payment',
             }),
-            content_type='application/json'
+            content_type='application/json',
         )
-
-        assert response.status_code in [200, 302]
-
-
-@pytest.mark.django_db
-class TestApiCurrentSession:
-    """Tests for API current session endpoint."""
-
-    def test_get_current_session(self, client, user, open_session):
-        """Test getting current session."""
-        client.force_login(user)
-
-        response = client.get('/m/cash_register/api/current/')
-
-        assert response.status_code in [200, 302]
-
-    def test_get_current_session_none(self, client, user):
-        """Test getting current session when none exists."""
-        client.force_login(user)
-
-        response = client.get('/m/cash_register/api/current/')
-
-        # Should return 404 or redirect
-        assert response.status_code in [302, 404]
-
-
-@pytest.mark.django_db
-class TestApiSessionMovements:
-    """Tests for API session movements endpoint."""
-
-    def test_get_session_movements(self, client, user, open_session):
-        """Test getting movements for a session."""
-        # Add a movement
-        CashMovement.objects.create(
-            session=open_session,
-            movement_type='sale',
-            amount=Decimal('50.00')
-        )
-
-        client.force_login(user)
-
-        response = client.get(f'/m/cash_register/api/session/{open_session.id}/movements/')
-
-        assert response.status_code in [200, 302]
-
-    def test_get_session_movements_not_found(self, client, user):
-        """Test getting movements for non-existent session."""
-        client.force_login(user)
-
-        import uuid
-        fake_id = uuid.uuid4()
-        response = client.get(f'/m/cash_register/api/session/{fake_id}/movements/')
-
-        assert response.status_code in [302, 404]
-
-
-@pytest.mark.django_db
-class TestSettingsView:
-    """Tests for settings view."""
-
-    def test_settings_get(self, client, user):
-        """Test GET settings page."""
-        client.force_login(user)
-
-        response = client.get('/m/cash_register/settings/')
-
-        assert response.status_code in [200, 302]
-
-    def test_settings_htmx(self, client, user):
-        """Test HTMX settings request."""
-        client.force_login(user)
-
-        response = client.get(
-            '/m/cash_register/settings/',
-            HTTP_HX_REQUEST='true'
-        )
-
-        assert response.status_code in [200, 302]
-
-    def test_settings_save(self, client, user):
-        """Test saving settings."""
-        client.force_login(user)
-
-        response = client.post('/m/cash_register/settings/', {
-            'enable_cash_register': 'on',
-            'require_opening_balance': 'on',
-            'require_closing_balance': 'on',
-            'allow_negative_balance': '',
-            'auto_open_session_on_login': 'on',
-            'auto_close_session_on_logout': 'on',
-            'protected_pos_url': '/m/sales/pos/'
-        })
-
-        assert response.status_code in [200, 302]
-
-
-@pytest.mark.django_db
-class TestHistoryView:
-    """Tests for history view."""
-
-    def test_history_get(self, client, user, closed_session):
-        """Test GET history page."""
-        client.force_login(user)
-
-        response = client.get('/m/cash_register/history/')
-
-        assert response.status_code in [200, 302]
-
-    def test_history_htmx(self, client, user, closed_session):
-        """Test HTMX history request."""
-        client.force_login(user)
-
-        response = client.get(
-            '/m/cash_register/history/',
-            HTTP_HX_REQUEST='true'
-        )
-
-        assert response.status_code in [200, 302]
-
-    def test_history_filter_status(self, client, user, open_session, closed_session):
-        """Test history filter by status."""
-        client.force_login(user)
-
-        response = client.get('/m/cash_register/history/?status=closed')
-
-        assert response.status_code in [200, 302]
-
-
-@pytest.mark.django_db
-class TestSessionDetailView:
-    """Tests for session detail view."""
-
-    def test_session_detail_get(self, client, user, closed_session):
-        """Test GET session detail page."""
-        client.force_login(user)
-
-        response = client.get(f'/m/cash_register/session/{closed_session.id}/')
-
-        assert response.status_code in [200, 302]
-
-    def test_session_detail_not_found(self, client, user):
-        """Test GET session detail for non-existent session."""
-        client.force_login(user)
-
-        import uuid
-        fake_id = uuid.uuid4()
-        response = client.get(f'/m/cash_register/session/{fake_id}/')
-
-        assert response.status_code in [302, 404]
-
-
-@pytest.mark.django_db
-class TestHtmxCalculateDenominations:
-    """Tests for HTMX calculate denominations endpoint."""
-
-    def test_calculate_denominations(self, client, user):
-        """Test calculating total from denominations."""
-        client.force_login(user)
-
-        response = client.post(
-            '/m/cash_register/htmx/calculate-denominations/',
-            data=json.dumps({
-                'denominations': {
-                    'bill_50': 2,
-                    'bill_20': 3,
-                    'coin_2': 10
-                }
-            }),
-            content_type='application/json'
-        )
-
-        assert response.status_code in [200, 302]
-
-
-@pytest.mark.django_db
-class TestHtmxCalculateDifference:
-    """Tests for HTMX calculate difference endpoint."""
-
-    def test_calculate_difference(self, client, user):
-        """Test calculating difference between expected and actual."""
-        client.force_login(user)
-
-        response = client.post(
-            '/m/cash_register/htmx/calculate-difference/',
-            data=json.dumps({
-                'expected': 100.00,
-                'actual': 95.00
-            }),
-            content_type='application/json'
-        )
-
-        assert response.status_code in [200, 302]
+        assert response.status_code == 200
+        data = response.json()
+        assert data['success'] is True

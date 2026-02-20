@@ -186,11 +186,11 @@ function sessionDetailApp() {
         <div class="card-body p-0">
             <!-- Tabs -->
             <div class="tabs p-3 pb-0">
-                <div class="tabs__nav">
-                    <button class="tabs__item" :class="{ 'is-active': movementFilter === 'all' }" @click="movementFilter = 'all'">{% trans "All" %} ({{ movements.count }})</button>
-                    <button class="tabs__item" :class="{ 'is-active': movementFilter === 'sale' }" @click="movementFilter = 'sale'">{% trans "Sales" %} ({{ sales_movements.count }})</button>
-                    <button class="tabs__item" :class="{ 'is-active': movementFilter === 'in' }" @click="movementFilter = 'in'">{% trans "In" %} ({{ in_movements.count }})</button>
-                    <button class="tabs__item" :class="{ 'is-active': movementFilter === 'out' }" @click="movementFilter = 'out'">{% trans "Out" %} ({{ out_movements.count }})</button>
+                <div class="tabs-nav">
+                    <button class="tabs-item" :class="{ 'is-active': movementFilter === 'all' }" @click="movementFilter = 'all'">{% trans "All" %} ({{ movements.count }})</button>
+                    <button class="tabs-item" :class="{ 'is-active': movementFilter === 'sale' }" @click="movementFilter = 'sale'">{% trans "Sales" %} ({{ sales_movements.count }})</button>
+                    <button class="tabs-item" :class="{ 'is-active': movementFilter === 'in' }" @click="movementFilter = 'in'">{% trans "In" %} ({{ in_movements.count }})</button>
+                    <button class="tabs-item" :class="{ 'is-active': movementFilter === 'out' }" @click="movementFilter = 'out'">{% trans "Out" %} ({{ out_movements.count }})</button>
                 </div>
             </div>
 
