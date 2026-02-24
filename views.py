@@ -5,6 +5,7 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.http import JsonResponse, HttpResponse
 from django.views.decorators.http import require_http_methods
 from django.utils import timezone
+from django.utils.translation import gettext_lazy as _
 
 from apps.accounts.decorators import login_required
 from apps.core.htmx import htmx_view
@@ -275,7 +276,7 @@ def add_register(request):
     try:
         name = request.POST.get('name', '').strip()
         if not name:
-            return JsonResponse({'success': False, 'error': 'Name required'}, status=400)
+            return JsonResponse({'success': False, 'error': _('Name required')}, status=400)
         CashRegister.objects.create(hub_id=hub, name=name)
         return redirect('cash_register:settings')
     except Exception as e:
@@ -309,7 +310,7 @@ def api_open_session(request):
 
         existing = CashSession.get_current_session(hub, user) if user else None
         if existing:
-            return JsonResponse({'success': False, 'error': 'Session already open'}, status=400)
+            return JsonResponse({'success': False, 'error': _('Session already open')}, status=400)
 
         session = CashSession.open_for_user(hub_id=hub, user=user, opening_balance=opening_balance)
         session.opening_notes = notes
@@ -346,7 +347,7 @@ def api_close_session(request):
 
         session = CashSession.get_current_session(hub, user) if user else None
         if not session:
-            return JsonResponse({'success': False, 'error': 'No open session'}, status=404)
+            return JsonResponse({'success': False, 'error': _('No open session')}, status=404)
 
         if denominations:
             CashCount.objects.create(
@@ -384,7 +385,7 @@ def api_add_movement(request):
 
         session = CashSession.get_current_session(hub, user) if user else None
         if not session:
-            return JsonResponse({'success': False, 'error': 'No open session'}, status=404)
+            return JsonResponse({'success': False, 'error': _('No open session')}, status=404)
 
         if movement_type == 'out' and amount > 0:
             amount = -amount
@@ -420,7 +421,7 @@ def api_current_session(request):
 
     session = CashSession.get_current_session(hub, user) if user else None
     if not session:
-        return JsonResponse({'success': False, 'error': 'No open session'}, status=404)
+        return JsonResponse({'success': False, 'error': _('No open session')}, status=404)
 
     return JsonResponse({
         'success': True,
