@@ -1,15 +1,7 @@
 {% load djicons i18n djicons djicons %}
 <div data-back-url="{% url 'cash_register:dashboard' %}" hidden></div>
 
-<script>
-function sessionDetailApp() {
-    return {
-        movementFilter: 'all',
-    }
-}
-</script>
-
-<div class="p-4" x-data="sessionDetailApp()">
+<div class="p-4" x-data="{ movementFilter: 'all' }">
     <!-- Session Header Card -->
     <div class="card mb-4">
         <div class="card-header">

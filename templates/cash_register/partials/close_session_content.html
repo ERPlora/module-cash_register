@@ -1,14 +1,12 @@
 {% load djicons i18n djicons djicons %}
 <div data-back-url="{% url 'cash_register:dashboard' %}" hidden></div>
 
-<script>
-function closeSessionApp() {
-    return {
+<div class="p-4" x-data="{
         expectedBalance: {{ expected_balance }},
         closingBalance: {{ expected_balance }},
         notes: '',
         processing: false,
-        requireClosingBalance: {{ config.require_closing_balance|yesno:"true,false" }},
+        requireClosingBalance: {{ config.require_closing_balance|yesno:'true,false' }},
         showDenominationCounter: false,
         coins: [
             { value: 0.01, count: 0 }, { value: 0.02, count: 0 },
@@ -44,7 +42,7 @@ function closeSessionApp() {
         async submitForm() {
             if (this.requireClosingBalance && !this.closingBalance) return;
             if (Math.abs(this.difference) > 10) {
-                if (!confirm('{% trans "Large Discrepancy" %}\n\n{% trans "There is a significant difference. Are you sure you want to close the session?" %}')) return;
+                if (!confirm('{% trans 'Large Discrepancy' %}\n\n{% trans 'There is a significant difference. Are you sure you want to close the session?' %}')) return;
             }
             this.processing = true;
             document.querySelector('form').submit();
@@ -54,11 +52,7 @@ function closeSessionApp() {
             const symbols = { 'EUR': '\u20ac', 'USD': '$', 'GBP': '\u00a3' };
             return (symbols[currency] || currency) + ' ' + parseFloat(amount).toFixed(2);
         },
-    }
-}
-</script>
-
-<div class="p-4" x-data="closeSessionApp()">
+    }">
     <div class="card mb-4">
         <div class="card-header">
             <div class="flex items-center justify-between">

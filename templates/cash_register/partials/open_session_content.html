@@ -1,12 +1,10 @@
 {% load djicons i18n djicons djicons %}
 <div data-back-url="{% url 'cash_register:dashboard' %}" hidden></div>
 
-<script>
-function openSessionApp() {
-    return {
-        openingBalance: {{ suggested_balance|default:"0.00" }},
+<div class="p-4" x-data="{
+        openingBalance: {{ suggested_balance|default:'0.00' }},
         notes: '',
-        requireOpeningBalance: {{ config.require_opening_balance|yesno:"true,false" }},
+        requireOpeningBalance: {{ config.require_opening_balance|yesno:'true,false' }},
         showDenominationCounter: false,
         coins: [
             { value: 0.01, count: 0 }, { value: 0.02, count: 0 },
@@ -43,11 +41,7 @@ function openSessionApp() {
             const symbols = { 'EUR': '\u20ac', 'USD': '$', 'GBP': '\u00a3' };
             return (symbols[currency] || currency) + ' ' + parseFloat(amount).toFixed(2);
         },
-    }
-}
-</script>
-
-<div class="p-4" x-data="openSessionApp()">
+    }">
     <div class="card mb-4">
         <div class="card-header">
             <h2 class="card-title">{% trans "Open Cash Session" %}</h2>
