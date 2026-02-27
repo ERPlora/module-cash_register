@@ -1,4 +1,5 @@
 {% load djicons i18n djicons djicons %}
+<div data-back-url="{% url 'cash_register:dashboard' %}" hidden></div>
 
 <script>
 function sessionDetailApp() {
@@ -9,14 +10,6 @@ function sessionDetailApp() {
 </script>
 
 <div class="p-4" x-data="sessionDetailApp()">
-    <!-- Back + Header -->
-    <button type="button"
-            hx-get="{% url 'cash_register:dashboard' %}"
-            hx-target="#main-content-area" hx-push-url="true"
-            class="btn btn-ghost mb-3">
-        {% icon "arrow-back-outline" %} {% trans "Back to Dashboard" %}
-    </button>
-
     <!-- Session Header Card -->
     <div class="card mb-4">
         <div class="card-header">
