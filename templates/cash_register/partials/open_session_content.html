@@ -20,8 +20,8 @@
         ],
         get calculatedTotal() {
             let total = 0;
-            this.coins.forEach(coin => { total += coin.value * coin.count; },
-            this.bills.forEach(bill => { total += bill.value * bill.count; },
+            this.coins.forEach(coin => { total += coin.value * coin.count; });
+            this.bills.forEach(bill => { total += bill.value * bill.count; });
             return Math.round(total * 100) / 100;
         },
         updateDenomination(type, value, count) {
@@ -31,14 +31,14 @@
         },
         useCalculatedTotal() { this.openingBalance = this.calculatedTotal; },
         getDenominationsData() {
-            const data = {},
-            this.coins.forEach(coin => { if (coin.count > 0) data[`coin_${coin.value}`] = coin.count; },
-            this.bills.forEach(bill => { if (bill.count > 0) data[`bill_${bill.value}`] = bill.count; },
+            const data = {};
+            this.coins.forEach(coin => { if (coin.count > 0) data[`coin_${coin.value}`] = coin.count; });
+            this.bills.forEach(bill => { if (bill.count > 0) data[`bill_${bill.value}`] = bill.count; });
             return data;
         },
         formatCurrency(amount) {
             const currency = '{{ HUB_CONFIG.currency }}';
-            const symbols = { 'EUR': '\u20ac', 'USD': '$', 'GBP': '\u00a3' },
+            const symbols = { 'EUR': '\u20ac', 'USD': '$', 'GBP': '\u00a3' };
             return (symbols[currency] || currency) + ' ' + parseFloat(amount).toFixed(2);
         }}">
     <div class="card mb-4">
